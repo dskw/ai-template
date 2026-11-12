@@ -1,0 +1,8 @@
+extends: existence
+message: "'%s' is on the blocklist. Use a plain word."
+level: error
+ignorecase: true
+tokens:
+  - load-bearing
+  - belt-and-suspenders
+  - belt and suspenders

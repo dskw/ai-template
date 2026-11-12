@@ -1,0 +1,7 @@
+extends: existence
+message: "'%s' is passive voice. Use active voice."
+level: warning
+ignorecase: true
+raw:
+  - \b(?:am|are|is|was|were|be|been|being)\s+
+  - (?:\w+ed|built|done|found|given|held|kept|known|made|read|run|sent|set|shown|taken|written)\b

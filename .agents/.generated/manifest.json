@@ -1,0 +1,28 @@
+{
+  "source_hash": "8ba9ac8424da73921c1644f35e56b0e117e9931a8f9e868317d29c2f4f5decc5",
+  "files": [
+    ".claude/agents/reviewer.md",
+    ".claude/settings.json",
+    ".claude/skills/bug-fix/SKILL.md",
+    ".claude/skills/bug-report/SKILL.md",
+    ".claude/skills/memory-consolidate/SKILL.md",
+    ".claude/skills/memory-save/SKILL.md",
+    ".claude/skills/milestone-close/SKILL.md",
+    ".claude/skills/milestone-create/SKILL.md",
+    ".claude/skills/plan-close/SKILL.md",
+    ".claude/skills/plan-create/SKILL.md",
+    ".claude/skills/project-init/SKILL.md",
+    ".claude/skills/project-update/SKILL.md",
+    ".claude/skills/review-plan/SKILL.md",
+    ".claude/skills/review-step/SKILL.md",
+    ".claude/skills/step-run/SKILL.md",
+    ".codex/agents/reviewer.toml",
+    ".codex/config.toml",
+    ".codex/hooks.json",
+    ".kilo/agents/reviewer.md",
+    ".kilo/plugin/setup-hooks.ts",
+    ".mcp.json",
+    "CLAUDE.md",
+    "kilo.jsonc"
+  ]
+}

@@ -1,0 +1,75 @@
+import os
+import shlex
+import subprocess
+
+from tools import build_wiki_bundle, check_encoding, docs_lint, memory_lint, progress, provider
+from tools._lib import PROJECT_FILE, ROOT, Fail, any_match, load_project, main, run as shell
+
+
+def quote(targets):
+    if os.name == "nt":
+        return subprocess.list2cmdline(targets)
+    return " ".join(shlex.quote(target) for target in targets)
+
+
+def language_errors(files):
+    if not PROJECT_FILE.exists():
+        return []
+    errors = []
+    for entry in load_project().get("language", []):
+        roots = [root.rstrip("/") for root in entry["source"] + entry["tests"]]
+        if files is None:
+            targets = [root for root in roots if (ROOT / root).exists()]
+        else:
+            targets = [
+                name
+                for name in files
+                if name.endswith(tuple(entry["extensions"])) and any(name.startswith(root + "/") for root in roots)
+            ]
+        if not targets:
+            continue
+        for key in ("format", "lint"):
+            code, output = shell(entry[key].replace("{files}", quote(targets)))
+            if code != 0:
+                errors.append(f"{entry['name']} {key}:\n{output.rstrip()}")
+    return errors
+
+
+def touches(files, patterns):
+    return files is None or any(any_match(name, patterns) for name in files)
+
+
+def run(args):
+    files = None
+    if args:
+        files = [os.path.relpath(os.path.abspath(name), ROOT).replace("\\", "/") for name in args]
+        files = [name for name in files if (ROOT / name).is_file()]
+    checks = [("lint and format", lambda: (language_errors(files), [])), ("encoding", lambda: (check_encoding.errors(files), []))]
+    checks.append(("docs lint", lambda: docs_lint.lint(files)))
+    if touches(files, ["docs/MEMORY.md", "docs/memories/**"]):
+        checks.append(("memory lint", memory_lint.lint))
+    if touches(files, [".agents/**", "AGENTS.md"]):
+        checks.append(("provider", lambda: (provider.check_errors(), [])))
+    if touches(files, ["docs/wiki/**"]):
+        checks.append(("wiki bundle", lambda: (build_wiki_bundle.check_errors(), [])))
+    if touches(files, ["docs/milestones/**", "docs/plans/**"]):
+        checks.append(("progress", lambda: (progress.check_errors(), [])))
+    failed = False
+    for name, function in checks:
+        try:
+            errors, warnings = function()
+        except Fail as error:
+            errors, warnings = [str(error)], []
+        for line in warnings:
+            print(f"warning: {line}")
+        if errors:
+            failed = True
+            print(f"FAIL {name}")
+            print("\n".join(errors))
+        else:
+            print(f"ok {name}")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    main(run)

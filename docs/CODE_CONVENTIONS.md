@@ -1,0 +1,71 @@
+# Code conventions
+
+Each rule has an id. A review problem names the id.
+
+## Baseline rules
+| ID | Rule |
+|---|---|
+| C01 | A change does what its step text says, not more and not less. |
+| C02 | A change does not break a caller of the changed code. |
+| C03 | A change reuses existing code. It does not duplicate a function, a type or a code path that exists. |
+| C04 | A change does not expose data or secrets. |
+| C05 | A change is as small as the step allows. A utility with one caller stays inline. |
+| C06 | Handle only the errors that the runtime can cause. Do not handle errors that the architecture prevents. |
+| C07 | No fallback, legacy path or migration without an entry in `DEPLOYMENT.md`. |
+| C08 | No narrative comments. Tool-directed annotations only. |
+| C09 | UI text follows `docs/design/`. A label is max 3 words. A tooltip is max 12 words. |
+
+## Encoding rules
+| ID | Rule |
+|---|---|
+| C10 | A text file is UTF-8 without a byte order mark. |
+| C11 | A line ends with LF. |
+| C12 | Source, documents and configuration hold ASCII characters only. |
+| C13 | A file that must hold non-ASCII characters has a row in the Non-ASCII allowlist. |
+| C14 | A script passes the encoding `utf-8` when it opens a text file. |
+| C15 | `python -m tools.fix_encoding` repairs a byte order mark, CRLF and Windows-1252. Replace a non-ASCII character by hand. |
+
+## Tool rules
+| ID | Rule |
+|---|---|
+| C16 | Run a tool in the form `python -m tools.<name>` from the repository root. |
+| C17 | A tool file has an underscore name, for example `tools/step_close.py`. |
+| C18 | A tool writes a file through a temporary file and a rename. |
+| C19 | A tool is safe to run again. It continues from the first effect that is missing. |
+
+## Check procedure
+```mermaid
+flowchart TD
+    write[Agent writes a file] --> pre[python -m tools.pre_write]
+    pre -->|blocked| source[Edit the source or use the tool]
+    pre -->|allowed| post[python -m tools.post_write]
+    post --> generator[Generator for the changed file]
+    generator --> check[python -m tools.check on the file]
+    check -->|fail| fix[Fix the file]
+    fix --> write
+    check -->|pass| next[Continue]
+    next --> commit[git commit]
+    commit --> full[python -m tools.check on the full tree]
+    full -->|fail| fix
+```
+
+## Non-ASCII allowlist
+| Path |
+|---|
+| docs/design/** |
+| docs/research/** |
+| docs/plans/**/evidence/** |
+| docs/wiki/assets/** |
+| DEPLOYMENT.md |
+
+## Languages
+`project-init` writes this table. `python -m tools.check` runs the formatter and the linter from `tools/project.toml`.
+
+| Language | Formatter | Linter | Naming | Source | Tests |
+|---|---|---|---|---|---|
+
+## Project rules
+The rules of the project start at C30.
+
+| ID | Rule |
+|---|---|
