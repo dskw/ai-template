@@ -1,7 +1,10 @@
+import datetime
 import os
+import shutil
 
 from tools import milestone_create, progress, test
 from tools._lib import (
+    CHANGELOG,
     MILESTONES,
     PLANS,
     Problems,
@@ -9,6 +12,7 @@ from tools._lib import (
     ask,
     branch,
     commit,
+    current_version,
     fail,
     find_milestone,
     git,
@@ -21,6 +25,7 @@ from tools._lib import (
     parse_check,
     plans,
     read,
+    rel,
     require_branch,
     run as shell,
     save_milestone,
@@ -32,6 +37,7 @@ from tools._lib import (
 )
 
 MANUAL = ("milestone manual passed", "milestone manual failed")
+TMP = MILESTONES / "tmp"
 
 
 def done_plan(milestone, feature_id):
@@ -95,6 +101,53 @@ def gate(milestone, migrate):
         fail("milestone gate:\n" + "\n".join(errors))
 
 
+def fixed_bugs(milestone):
+    code, output = shell(["git", "log", "--format=%s%x00%b%x01", f"--grep=^Bug fixed: {milestone['id']} "])
+    bugs = []
+    for entry in output.split("\x01"):
+        subject, _, body = entry.strip().partition("\x00")
+        if subject.startswith(f"Bug fixed: {milestone['id']} ") and body.strip():
+            bugs.append(body.strip().splitlines()[0])
+    return bugs
+
+
+def released(milestone_id, ref="HEAD"):
+    code, output = shell(["git", "log", "--format=%s", ref])
+    for subject in output.splitlines() if code == 0 else []:
+        if subject.startswith("Version: "):
+            return subject[len("Version: ") :]
+        if subject.startswith("Plan closed: ") or subject == f"Milestone created: {milestone_id}":
+            return None
+    return None
+
+
+def release(milestone):
+    version = released(milestone["id"])
+    if version:
+        return version
+    done = [row for row in milestone["features"] if row["State"] == "done"]
+    bugs = fixed_bugs(milestone)
+    if not done and not bugs:
+        return None
+    numbers, previous = current_version()
+    numbers = [numbers[0], numbers[1] + 1, 0] if done else [numbers[0], numbers[1], numbers[2] + 1]
+    version = ".".join(str(number) for number in numbers)
+    lines = [f"- {'New feature' if row['Type'] == 'new' else 'Update'}: {row['Feature']}" for row in done]
+    lines += [f"- Bugfix: {text}" for text in bugs]
+    stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    entry = f"# {version} {stamp}\n" + "\n".join(lines) + "\n"
+    write(CHANGELOG, entry + ("\n" + previous.strip("\n") + "\n" if previous.strip() else ""))
+    commit(f"Version: {version}", [CHANGELOG])
+    print(f"Version: {version}")
+    return version
+
+
+def clear_tmp():
+    shutil.rmtree(TMP, ignore_errors=True)
+    if TMP.exists():
+        fail(f"{rel(TMP)} is in use: close the manual check package, then run the close again")
+
+
 def archive(milestone, paths=None):
     milestone["meta"]["status"] = "closed"
     milestone["meta"]["closed"] = today()
@@ -120,7 +173,9 @@ def squash_marker():
 
 def summary(name):
     milestone = next(m for m in milestones() if m["archived"] and milestone_branch(m) == name)
-    lines = [f"Milestone closed: {milestone['id']}", "", milestone_create.section(milestone["text"], "Goal") or ""]
+    version = released(milestone["id"], name)
+    title = f"Milestone closed: {milestone['id']}" + (f" {version}" if version else "")
+    lines = [title, "", milestone_create.section(milestone["text"], "Goal") or ""]
     for state, label in (("done", "Done"), ("dropped", "Dropped"), ("migrated", "Migrated")):
         rows = [row["Feature"] for row in milestone["features"] if row["State"] == state]
         if rows:
@@ -172,6 +227,8 @@ def close():
     if milestone:
         require_branch(milestone_branch(milestone))
         gate(milestone, False)
+        clear_tmp()
+        release(milestone)
         archive(milestone)
     elif not closed_branch():
         require_branch()
@@ -199,6 +256,8 @@ def migrate(new_id):
         if errors:
             fail("\n".join(errors))
         gate(old, True)
+        clear_tmp()
+        release(old)
         for number, row in enumerate(moving, 1):
             row["State"], row["Plans"] = "migrated", f"{new_id}-F{number:02d}"
         old["bugs"] = []

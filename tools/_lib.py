@@ -14,6 +14,7 @@ DOCS = ROOT / "docs"
 MILESTONES = DOCS / "milestones"
 PLANS = DOCS / "plans"
 PROJECT_FILE = ROOT / "tools" / "project.toml"
+CHANGELOG = ROOT / "CHANGELOG.md"
 
 MILESTONE_FILE = re.compile(r"^(M\d{3})-([a-z0-9]+(?:-[a-z0-9]+)*)\.md$")
 PLAN_DIR = re.compile(r"^(M\d{3})-(P\d{3})-([a-z0-9]+(?:-[a-z0-9]+)*)$")
@@ -165,6 +166,14 @@ def commit(message, paths=None):
             return False
         git("commit", "-m", message)
     return True
+
+
+def current_version():
+    text = git("show", "HEAD:CHANGELOG.md", check=False) if git_ok("cat-file", "-e", "HEAD:CHANGELOG.md") else ""
+    match = re.search(r"^# (\d+)\.(\d+)\.(\d+) ", text, re.M)
+    if match:
+        return [int(part) for part in match.groups()], text
+    return [int(part) for part in str(load_project()["start_version"]).split(".")], text
 
 
 def git_dir():

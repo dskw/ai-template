@@ -29,6 +29,7 @@ The docs lint covers `docs/**`, `AGENTS.md`, `.agents/**` and `CHANGELOG.md`. It
 | docs/research/** |
 | docs/plans/**/evidence/** |
 | docs/plans/**/tmp/** |
+| docs/milestones/tmp/** |
 | docs/wiki/assets/** |
 | docs/wiki/index.html |
 
@@ -62,10 +63,11 @@ The docs lint covers `docs/**`, `AGENTS.md`, `.agents/**` and `CHANGELOG.md`. It
 /docs/plans/M[NNN]-P[NNN]-[NAME]/extensions.md (work found during the plan that is not in the plan)
 /docs/plans/M[NNN]-P[NNN]-[NAME]/problems.md   (review problems, answers and records)
 /docs/plans/M[NNN]-P[NNN]-[NAME]/evidence/     (raw output per step, written by tools.test)
-/docs/plans/M[NNN]-P[NNN]-[NAME]/tmp/          (temporary files of the plan, deleted at plan close)
+/docs/plans/M[NNN]-P[NNN]-[NAME]/tmp/          (temporary files of the plan, the manual check package, deleted at plan close)
+/docs/milestones/tmp/                          (the manual check package of the milestone close, deleted at that close)
 /docs/plans/archive/                           (closed plans)
 /docs/wiki/                                    (developer wiki, project content only)
-/CHANGELOG.md                                  (versions, written by tools.plan_close)
+/CHANGELOG.md                                  (versions, written by tools.milestone_close)
 /DEPLOYMENT.md                                 (deployed version and compatible paths, written by the user)
 ```
 
@@ -141,6 +143,7 @@ The user can draw a route on the map, save it and load it again.
 | D25 | A feature text has max 12 words. `Type` is `new` or `update`. |
 | D26 | An acceptance is one check: `TEST <name> passes`, `COMMAND <name> passes` or `MANUAL <name>`. |
 | D27 | The user runs a `MANUAL` check, or delegates it to the agent for one step or one plan. A tool records the answer and its source. |
+| D187 | A manual check package of a step or a plan goes into `docs/plans/<plan>/tmp/manual-check/`, one of the milestone close into `docs/milestones/tmp/manual-check/`. A close fails while a package is in use. |
 | D28 | `python -m tools.progress` writes `Plans` and `State`. `State` is `open`, `in progress`, `done`, `dropped` or `migrated`. |
 | D29 | A feature is `done` when an archived plan lists it in `done` and no active plan references it. |
 | D30 | After the document review, only the user adds, changes or deletes a feature. |
@@ -387,6 +390,7 @@ sequenceDiagram
 | D79 | A step has one new attempt. After the second attempt fails, block the step and ask the user. |
 | D80 | No other step starts while a step has the state `blocked`. |
 | D81 | The agent commits during a step as often as necessary, with a message of its own. |
+| D186 | Start the step before the first write to a source or test folder. The pre-commit check rejects such a change while a plan is active and no step is in progress. |
 
 ## Plan close
 ```mermaid
@@ -406,7 +410,7 @@ flowchart TD
     passed --> close[plan_close]
     close --> gate{Plan gate}
     gate -->|fail| review
-    gate -->|pass| done[Version commit and archive]
+    gate -->|pass| done[Archive]
 ```
 
 | ID | Rule |
@@ -437,7 +441,7 @@ flowchart TD
 | ID | Rule |
 |---|---|
 | D99 | `python -m tools.milestone_close check` runs each acceptance check of the feature table. |
-| D100 | `python -m tools.milestone_close` applies the gate, archives the file, merges the branch with a squash and deletes it. |
+| D100 | `python -m tools.milestone_close` applies the gate, writes the version, archives the file, merges the branch with a squash and deletes it. |
 | D101 | The user can close a milestone early. Close the active plan first. |
 | D102 | For a premature close, write the new milestone as draft with `python -m tools.milestone_create start <name> --migrate`. |
 | D103 | The draft starts with the migrated features in id order and the migrated bugs, with new ids. |
@@ -486,8 +490,9 @@ The tools make these commits. The agent never makes them by hand.
 | `Bug fixed: M003 B01` | `plan_close` |
 | `Bug dropped: M003 B02 <reason>` | `progress drop-bug` |
 | `Review passed: M003-P002` | `plan_close review-passed` |
-| `Version: 1.12.1`, `Plan closed: M003-P002` | `plan_close` |
-| `Milestone closed: M003` | `milestone_close`, on the milestone branch and as the squash commit on the main branch |
+| `Plan closed: M003-P002` | `plan_close` |
+| `Version: 1.12.0` | `milestone_close`, on the milestone branch |
+| `Milestone closed: M003 1.12.0` | `milestone_close`, on the milestone branch and as the squash commit on the main branch |
 
 | ID | Rule |
 |---|---|
@@ -496,7 +501,7 @@ The tools make these commits. The agent never makes them by hand.
 | D120 | Each milestone has one branch, for example `milestone/M003-route-planning`. Each commit of the milestone is on it. |
 | D121 | A tool stops on the wrong branch, on a detached `HEAD`, or during an open merge or rebase. |
 | D122 | Resolve a merge conflict of the milestone close, run `git add`, then run the tool again. |
-| D183 | The main branch gets one commit per milestone: `Milestone closed: M003`, the goal and the done, dropped and migrated features. |
+| D183 | The main branch gets one commit per milestone: `Milestone closed: M003 1.12.0`, the goal and the done, dropped and migrated features. |
 | D184 | The commits of the milestone branch stay on that branch until the tool deletes it. A tool reads the history of the main branch for no state. |
 | D123 | Do not use worktrees unless the user asks. Remove a worktree at the end of its task. |
 
@@ -512,9 +517,9 @@ The tools make these commits. The agent never makes them by hand.
 
 | ID | Rule |
 |---|---|
-| D124 | `python -m tools.plan_close` writes `CHANGELOG.md`. Do not log a change by hand. |
-| D125 | A feature plan with a `done` list gives a minor version. A fix plan with a `done` list gives a patch version. |
-| D126 | A plan with an empty `done` list gives no version. The user decides a major version. |
+| D124 | `python -m tools.milestone_close` writes `CHANGELOG.md` with one entry per milestone: each done feature and each fixed bug. Do not log a change by hand. |
+| D125 | A milestone with a done feature gives a minor version. A milestone with fixed bugs only gives a patch version. |
+| D126 | A plan close gives no version. A milestone with nothing done gives no version. The user decides a major version. |
 | D127 | The first version counts from `start_version` in `tools/project.toml`. |
 | D128 | Legacy support and migration are necessary only for an entry of `DEPLOYMENT.md`. |
 | D129 | The user writes `DEPLOYMENT.md` at each deployment. Ask the user when a change conflicts with an entry. |

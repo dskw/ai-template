@@ -1,5 +1,4 @@
 import collections
-import datetime
 import os
 import re
 import shutil
@@ -7,7 +6,6 @@ import shutil
 from tools import memory_lint, progress, test
 from tools._lib import (
     PLANS,
-    ROOT,
     Problems,
     approval_errors,
     ask,
@@ -15,10 +13,7 @@ from tools._lib import (
     commit,
     dirty_files,
     fail,
-    find_milestone,
     git,
-    git_ok,
-    load_project,
     main,
     milestones,
     open_important,
@@ -38,13 +33,10 @@ from tools._lib import (
     today,
     tool,
     words,
-    write,
-    BUG_HEADER,
     EXTENSION_HEADER,
 )
 from tools.approve import close_base
 
-CHANGELOG = ROOT / "CHANGELOG.md"
 PLAN_HINT = "add a fix step with python -m tools.step_close add-fix <problem> <step>"
 BOUNDARIES = ("fix added", "plan unblocked", "review passed")
 
@@ -188,7 +180,7 @@ def review_commit(plan):
     for commit_hash, subject in subjects():
         if subject == f"Review passed: {plan['id']}":
             return commit_hash
-        if not re.match(r"^(Bug fixed|Version): ", subject):
+        if not subject.startswith("Bug fixed: "):
             break
     fail("changed after review, run review-plan again")
 
@@ -235,20 +227,12 @@ def gate(plan, milestone, problems):
     return review
 
 
-def current_version():
-    text = git("show", "HEAD:CHANGELOG.md", check=False) if git_ok("cat-file", "-e", "HEAD:CHANGELOG.md") else ""
-    match = re.search(r"^# (\d+)\.(\d+)\.(\d+) ", text, re.M)
-    if match:
-        return [int(part) for part in match.groups()], text
-    return [int(part) for part in str(load_project()["start_version"]).split(".")], text
-
-
 def fix_bug(plan, milestone, bug_id):
     plan["meta"]["done"].append(bug_id)
     save_plan(plan)
-    progress.remove_bug(milestone, bug_id)
+    row = progress.remove_bug(milestone, bug_id)
     progress.regenerate()
-    commit(f"Bug fixed: {milestone['id']} {bug_id}")
+    commit(f"Bug fixed: {milestone['id']} {bug_id}\n\n{row['Bug']}")
 
 
 def fix_one(bug_id):
@@ -293,10 +277,9 @@ def close():
     if finish_archive():
         return
     plan, milestone, problems = context()
-    review = gate(plan, milestone, problems)
+    gate(plan, milestone, problems)
     done = plan["meta"]["done"]
     replanned = {r["ids"][1] for r in problems.records if r["type"] == "plan unblocked" and r["ids"][0] == "replan"}
-    reviewed_bugs = read_table(git("show", f"{review}:{milestone['rel']}"), "Bugs", BUG_HEADER, milestone["rel"])
     for item in plan["ids"]:
         row = target_row(plan, milestone, item)
         if item in done or not row or row.get("State") == "dropped" or item in replanned:
@@ -307,34 +290,22 @@ def close():
                 fix_bug(plan, milestone, item)
         elif passes(row["Acceptance"], item, problems):
             done.append(item)
-    versioned = False
-    for _, subject in subjects():
-        if subject == f"Review passed: {plan['id']}":
-            break
-        versioned = versioned or subject.startswith("Version: ")
-    if done and not versioned:
-        numbers, previous = current_version()
-        if plan["field"] == "features":
-            numbers = [numbers[0], numbers[1] + 1, 0]
-            rows = {row["ID"]: row for row in milestone["features"]}
-            lines = [f"- {'New feature' if rows[i]['Type'] == 'new' else 'Update'}: {rows[i]['Feature']}" for i in done]
-        else:
-            numbers = [numbers[0], numbers[1], numbers[2] + 1]
-            rows = {row["ID"]: row for row in reviewed_bugs}
-            lines = [f"- Bugfix: {rows[i]['Bug']}" for i in done]
-        version = ".".join(str(number) for number in numbers)
-        stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        entry = f"# {version} {stamp}\n" + "\n".join(lines) + "\n"
-        write(CHANGELOG, entry + ("\n" + previous.strip("\n") + "\n" if previous.strip() else ""))
-        save_plan(plan)
-        commit(f"Version: {version}")
-        print(f"Version: {version}")
+    save_plan(plan)
+    tmp = plan["dir"] / "tmp"
+    shutil.rmtree(tmp, ignore_errors=True)
+    if tmp.exists():
+        fail(f"{rel(tmp)} is in use: close the manual check package, then run the close again")
+    prune(plan["dir"])
+    target = PLANS / "archive" / plan["dir"].name
+    try:
+        os.rename(plan["dir"], target)
+    except OSError:
+        shutil.copytree(plan["dir"], target)
+        shutil.rmtree(plan["dir"])
+    plan["dir"], plan["path"], plan["rel"] = target, target / "plan.md", rel(target)
     plan["meta"]["status"] = "closed"
     plan["meta"]["closed"] = today()
     save_plan(plan)
-    shutil.rmtree(plan["dir"] / "tmp", ignore_errors=True)
-    prune(plan["dir"])
-    os.rename(plan["dir"], PLANS / "archive" / plan["dir"].name)
     progress.regenerate()
     commit(f"Plan closed: {plan['id']}")
     print(f"Plan closed: {plan['id']}")

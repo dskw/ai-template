@@ -3,7 +3,7 @@ import shlex
 import subprocess
 
 from tools import build_wiki_bundle, check_encoding, docs_lint, memory_lint, progress, provider
-from tools._lib import PROJECT_FILE, ROOT, Fail, any_match, load_project, main, run as shell
+from tools._lib import PROJECT_FILE, ROOT, Fail, Problems, active_plan, any_match, load_project, main, open_milestone, run as shell
 
 
 def quote(targets):
@@ -35,6 +35,28 @@ def language_errors(files, format_only=False):
     return errors
 
 
+def commit_order_errors():
+    if not PROJECT_FILE.exists():
+        return []
+    code, output = shell(["git", "diff", "--cached", "--name-only"])
+    staged = output.split()
+    roots = [root.rstrip("/") + "/" for entry in load_project().get("language", []) for root in entry["source"] + entry["tests"]]
+    if code != 0 or not any(name.startswith(tuple(roots)) for name in staged):
+        return []
+    try:
+        plan = active_plan()
+    except Fail:
+        return []
+    if not plan or any(row["State"] == "in progress" for row in plan["progress"]):
+        return []
+    last = Problems(plan).last(("step started", "plan reviewed"))
+    if last and last["type"] == "plan reviewed":
+        return []
+    milestone = open_milestone()
+    step = progress.next_step(plan, milestone) if milestone else None
+    return [f"start the step first: python -m tools.step_close start {step or '<step>'}"]
+
+
 def touches(files, patterns):
     return files is None or any(any_match(name, patterns) for name in files)
 
@@ -56,6 +78,8 @@ def run(args):
         checks.append(("wiki bundle", lambda: (build_wiki_bundle.check_errors(), [])))
     if touches(files, ["docs/milestones/**", "docs/plans/**"]):
         checks.append(("progress", lambda: (progress.check_errors(), [])))
+    if files is None:
+        checks.append(("commit order", lambda: (commit_order_errors(), [])))
     failed = False
     for name, function in checks:
         try:
