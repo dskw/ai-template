@@ -517,7 +517,7 @@ The tools make these commits. The agent never makes them by hand.
 
 | ID | Rule |
 |---|---|
-| D124 | `python -m tools.milestone_close` writes `CHANGELOG.md` with one entry per milestone: each done feature and each fixed bug. Do not log a change by hand. |
+| D124 | `python -m tools.milestone_close` writes `CHANGELOG.md` with one entry per milestone: the `New feature` lines, then the `Update` lines, then the `Bugfix` lines. Do not log a change by hand. |
 | D125 | A milestone with a done feature gives a minor version. A milestone with fixed bugs only gives a patch version. |
 | D126 | A plan close gives no version. A milestone with nothing done gives no version. The user decides a major version. |
 | D127 | The first version counts from `start_version` in `tools/project.toml`. |

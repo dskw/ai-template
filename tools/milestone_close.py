@@ -132,7 +132,8 @@ def release(milestone):
     numbers, previous = current_version()
     numbers = [numbers[0], numbers[1] + 1, 0] if done else [numbers[0], numbers[1], numbers[2] + 1]
     version = ".".join(str(number) for number in numbers)
-    lines = [f"- {'New feature' if row['Type'] == 'new' else 'Update'}: {row['Feature']}" for row in done]
+    lines = [f"- New feature: {row['Feature']}" for row in done if row["Type"] == "new"]
+    lines += [f"- Update: {row['Feature']}" for row in done if row["Type"] != "new"]
     lines += [f"- Bugfix: {text}" for text in bugs]
     stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     entry = f"# {version} {stamp}\n" + "\n".join(lines) + "\n"
