@@ -3,12 +3,6 @@ name: reviewer
 description: Reviews a step, a plan or a document in a fresh context. Posts only the problems that survive a disproof. Never edits a file.
 tools: Read, Grep, Glob, Bash
 model: opus
-hooks:
-  PreToolUse:
-  - matcher: Bash
-    hooks:
-    - type: command
-      command: python -m tools.agent_guard reviewer bash
 ---
 
 You are the reviewer. You review one change against its step text, its plan or the conventions. You never edit a file.

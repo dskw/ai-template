@@ -12,7 +12,7 @@ def quote(targets):
     return " ".join(shlex.quote(target) for target in targets)
 
 
-def language_errors(files):
+def language_errors(files, format_only=False):
     if not PROJECT_FILE.exists():
         return []
     errors = []
@@ -28,7 +28,7 @@ def language_errors(files):
             ]
         if not targets:
             continue
-        for key in ("format", "lint"):
+        for key in ("format",) if format_only else ("format", "lint"):
             code, output = shell(entry[key].replace("{files}", quote(targets)))
             if code != 0:
                 errors.append(f"{entry['name']} {key}:\n{output.rstrip()}")
@@ -40,11 +40,13 @@ def touches(files, patterns):
 
 
 def run(args):
+    format_only = "--format-only" in args
+    args = [name for name in args if name != "--format-only"]
     files = None
     if args:
         files = [os.path.relpath(os.path.abspath(name), ROOT).replace("\\", "/") for name in args]
         files = [name for name in files if (ROOT / name).is_file()]
-    checks = [("lint and format", lambda: (language_errors(files), [])), ("encoding", lambda: (check_encoding.errors(files), []))]
+    checks = [("lint and format", lambda: (language_errors(files, format_only), [])), ("encoding", lambda: (check_encoding.errors(files), []))]
     checks.append(("docs lint", lambda: docs_lint.lint(files)))
     if touches(files, ["docs/MEMORY.md", "docs/memories/**"]):
         checks.append(("memory lint", memory_lint.lint))

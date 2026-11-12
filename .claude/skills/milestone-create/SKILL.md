@@ -16,8 +16,8 @@ The format and the rules of a milestone file are in `docs/DOCS_CONVENTIONS.md`, 
 7. A feature row has the next id, the feature text, the type and one acceptance check. `Plans` stays empty. `State` is `open`.
 8. Ask the user for each acceptance that `docs/design/` does not give. A feature without acceptance does not pass.
 9. Write a bug row for each open bug that this milestone takes over. Give each row a new id.
-10. Start the `reviewer` agent with the scope document review and the path of the draft file.
-11. Fix each problem in the draft file. Run the review one more time when the first review posted a problem.
+10. Start the `reviewer` agent with the effort `medium`, the scope document review and the path of the draft file.
+11. Fix each problem in the draft file. When the first review posted a problem, run a second review of the answers and the changed lines only.
 12. Run `python -m tools.milestone_create commit`. Fix each item that it names and run it again.
 
 ## Milestone for bugs only

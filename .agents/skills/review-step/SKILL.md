@@ -11,12 +11,14 @@ The problem format is in `docs/REVIEW.md`. The file format is in `docs/DOCS_CONV
 2. Read the start commit of the step from its `step started` record in `problems.md`.
 3. Start the `reviewer` agent in a fresh context with the scope step review.
 4. Give it the plan folder, the step id, the start commit, the evidence file, the notes of the implementor and the round.
-5. In round 2, give it the problem rows of round 1 with their answers.
-6. Write one row per posted problem into the `Problems` table. Use the next free problem id.
-7. Fill `Step`, `Round`, `Severity`, `Rule`, `Location`, `Trigger`, `Class` and `Fix`. Leave `Answer` and `Check` empty.
-8. In round 2, write the result of the reviewer into the `Check` cell of each round 1 problem.
-9. For each `Pre-existing` problem, run `bug-report` with the plan id and the problem id as source. Write `bug <id>` as its answer.
-10. Report the count of problems to the caller.
+5. Name the design sections that the step touches, not whole documents. Name the test command and its duration.
+6. Name the folder `dependency_source` of `tools/project.toml` when the binding exists.
+7. In round 2, give it the new diff only and the problem rows of round 1 with their answers.
+8. Write one row per posted problem into the `Problems` table. Use the next free problem id.
+9. Fill `Step`, `Round`, `Severity`, `Rule`, `Location`, `Trigger`, `Class` and `Fix`. Leave `Answer` and `Check` empty.
+10. In round 2, write the result of the reviewer into the `Check` cell of each round 1 problem.
+11. For each `Pre-existing` problem, run `bug-report` with the plan id and the problem id as source. Write `bug <id>` as its answer.
+12. Report the count of problems to the caller.
 
 ## Rules
 - Do not change a problem that the reviewer posted. Do not drop one.

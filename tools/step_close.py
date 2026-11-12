@@ -113,7 +113,7 @@ def step_rows(problems, step_id):
     return [row for row in problems.rows if row["Step"] == step_id]
 
 
-def close(step_id, answer):
+def close(step_id, answer, by=None):
     plan, milestone, problems, row = context(step_id)
     subject = f"Step closed: {plan['id']} {step_id}"
     if row["State"] == "complete":
@@ -143,7 +143,7 @@ def close(step_id, answer):
         passed = ask(f"Manual check {name} of step {step_id}: did it pass?", answer)
         problems.record("manual passed" if passed else "manual failed", step_id)
         problems.save()
-        test.append_evidence(plan, step_id, name, "MANUAL", 0 if passed else 1, f"answer of the user: {'yes' if passed else 'no'}")
+        test.append_evidence(plan, step_id, name, "MANUAL", 0 if passed else 1, manual_source(by, passed))
         if not passed:
             errors.append(f"the manual check {name} failed")
     else:
@@ -222,13 +222,22 @@ def add_fix(problem_id, step_id):
     print(f"fix step {fix_id} added, run step-run")
 
 
+def manual_source(by, passed):
+    if by == "agent":
+        return f"checked by the agent on request of the user: {'passed' if passed else 'failed'}"
+    return f"answer of the user: {'yes' if passed else 'no'}"
+
+
 def run(args):
     answer = take_option(args, "--answer")
+    by = take_option(args, "--by")
+    if by not in (None, "agent"):
+        fail("--by takes the value agent")
     command, rest = (args[0], args[1:]) if args else ("", [])
     if command in ("start", "review", "revert", "block") and len(rest) == 1:
         {"start": start, "review": review, "revert": revert, "block": block}[command](rest[0])
     elif command == "close" and len(rest) == 1:
-        close(rest[0], answer)
+        close(rest[0], answer, by)
     elif command == "unblock" and len(rest) == 2:
         unblock(*rest)
     elif command == "add-fix" and len(rest) == 2:
@@ -236,7 +245,7 @@ def run(args):
     else:
         fail(
             "usage: python -m tools.step_close <start|review|revert|block> <step>"
-            " | close <step> [--answer yes|no]"
+            " | close <step> [--answer yes|no] [--by agent]"
             ' | unblock <step> "<user answer>"'
             " | add-fix <problem> <step>"
         )

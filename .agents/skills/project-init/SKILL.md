@@ -31,6 +31,7 @@ The procedure and the formats are in `docs/DOCS_CONVENTIONS.md`, section Project
 | 6 | Is the product deployed? | single choice | Not deployed. Deployed, the user writes `DEPLOYMENT.md` now. |
 | 7 | Does the project have a CI pipeline? | single choice | None, the project lives on the local machine. A pipeline on the host that the user names. |
 | 8 | Which MCP servers? | multiple select | The suggested servers. None. |
+| 9 | Where is the source of the installed dependencies? | single choice | The derived folder of the stack. None. |
 
 Ask question 1 only when `docs/design/` holds no document.
 
@@ -47,7 +48,7 @@ Prepare these writes. Do not write a file before the confirmation.
 2. The `Project` section of `AGENTS.md`: one to three sentences on the product and a link to `docs/design/`.
 3. The `Languages` table of `docs/CODE_CONVENTIONS.md`: one row per language, with the naming rules.
 4. The `Test runner` table of `docs/TEST_CONVENTIONS.md`.
-5. `tools/project.toml` in the format of `docs/DOCS_CONVENTIONS.md`, with the command lines of the chosen tools.
+5. `tools/project.toml` in the format of `docs/DOCS_CONVENTIONS.md`, with the command lines of the chosen tools and `dependency_source` when the user named a folder.
 6. Use the start version of the example in `docs/DOCS_CONVENTIONS.md` unless the user answered that the product is in deployment.
 7. Set `main_branch` to the output of `git branch --show-current`.
 8. The pipeline file that runs `python -m tools.check` and `python -m tools.test`, only when the user named a pipeline.

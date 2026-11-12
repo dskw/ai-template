@@ -24,6 +24,8 @@ def errors():
         found.append("tools/project.toml: product_terms must be a list with the product name")
     if not re.fullmatch(r"\d+\.\d+\.\d+", str(project["start_version"])):
         found.append("tools/project.toml: start_version must have the form 0.0.0")
+    if "dependency_source" in project and not isinstance(project["dependency_source"], str):
+        found.append("tools/project.toml: dependency_source must be one folder")
     if "{name}" not in project["test_command"]:
         found.append("tools/project.toml: test_command must hold {name}")
     languages = project.get("language")

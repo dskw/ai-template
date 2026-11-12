@@ -35,4 +35,8 @@ Do not implement a need that the step text does not cover. Add a row with the ne
 5. Run `python -m tools.step_close unblock <step> "<answer of the user>"`. Continue as the user decided.
 
 ## Manual verification
-For a `MANUAL` check, ask the user to run the check. Pass the answer with `python -m tools.step_close close <step> --answer <yes|no>`.
+1. Put a package into `docs/plans/<plan>/tmp/manual-check/`: the built application with each file that it needs, one start script per part, and a readme of max 20 lines.
+2. The readme names what to start, what to check and what the user tells the agent.
+3. Start each script once from its full path. Fix the package when a script fails.
+4. Ask the user to run the check. Pass the answer with `python -m tools.step_close close <step> --answer <yes|no>`.
+5. When the user delegated the check to the agent, run the check yourself and add `--by agent`.

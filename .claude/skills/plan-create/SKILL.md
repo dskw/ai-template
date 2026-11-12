@@ -16,8 +16,8 @@ The format and the rules of a plan file are in `docs/DOCS_CONVENTIONS.md`, secti
 7. Write the step rows. Each step names its id, a text and one verification check.
 8. Cut each step as one increment that the user can see. The verification must pass after that step alone.
 9. Write the checks of the plan into the `Verification` section, one check per list line.
-10. Start the `reviewer` agent with the scope document review and the path of `plan.md`.
-11. Fix each problem in the draft. Run the review one more time when the first review posted a problem.
+10. Start the `reviewer` agent with the effort `medium`, the scope document review and the path of `plan.md`.
+11. Fix each problem in the draft. When the first review posted a problem, run a second review of the answers and the changed lines only.
 12. Run `python -m tools.plan_create commit`. Fix each item that it names and run it again.
 
 ## Ids

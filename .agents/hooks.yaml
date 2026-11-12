@@ -11,6 +11,20 @@
     kilo: edit|write|multiedit|apply_patch
   command: python -m tools.pre_write
   timeout: 30
+- event: pre_tool_use
+  matcher:
+    claude: Bash
+    codex: shell|local_shell
+    kilo: bash
+  command: python -m tools.agent_guard bash
+  timeout: 30
+- event: pre_tool_use
+  matcher:
+    claude: Edit|Write
+    codex: apply_patch|Edit|Write
+    kilo: edit|write|multiedit|apply_patch
+  command: python -m tools.agent_guard edit
+  timeout: 30
 - event: post_tool_use
   matcher:
     claude: Edit|Write

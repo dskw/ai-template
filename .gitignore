@@ -5,3 +5,4 @@ __pycache__/
 .kilo/package.json
 .kilo/bun.lock
 .kilo/.gitignore
+docs/plans/*/tmp/

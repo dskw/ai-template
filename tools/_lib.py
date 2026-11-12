@@ -644,9 +644,7 @@ def approval_errors(plan, problems, target, base):
 
 def ask(question, answer=None):
     if answer is None:
-        if not sys.stdin.isatty():
-            fail(f"{question}\nAsk the user, then run the command again with --answer yes or --answer no")
-        answer = input(f"{question} [yes/no] ")
+        fail(f"{question}\nAsk the user, then run the command again with --answer yes or --answer no")
     answer = answer.strip().lower()
     if answer not in ("yes", "no", "y", "n"):
         fail("the answer must be yes or no")

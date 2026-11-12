@@ -6,14 +6,17 @@ SHELL_OPERATORS = (";", "&", "|", "<", ">", "`", "$(", "\n")
 
 
 def run(args):
-    if len(args) != 2 or args[1] not in ("bash", "edit"):
-        fail("usage: python -m tools.agent_guard <agent> <bash|edit>")
-    agent, kind = args
+    if len(args) not in (1, 2) or args[-1] not in ("bash", "edit"):
+        fail("usage: python -m tools.agent_guard [<agent>] <bash|edit>")
+    data = hook_input()
+    kind = args[-1]
+    agent = args[0] if len(args) == 2 else data.get("agent_type")
+    if not agent:
+        return 0
     path = ROOT / ".agents" / "agents" / f"{agent}.md"
     if not path.exists():
         return 0
     meta = read_meta(read(path), f".agents/agents/{agent}.md")
-    data = hook_input()
     if kind == "bash":
         allowed = meta.get("bash_allow")
         command = str((data.get("tool_input") or data.get("args") or {}).get("command", "")).strip()

@@ -48,6 +48,7 @@ The docs lint covers `docs/**`, `AGENTS.md`, `.agents/**` and `CHANGELOG.md`. It
 /docs/TEST_CONVENTIONS.md                      (how to test)
 /docs/DOCS_CONVENTIONS.md                      (how to plan, record and write, and the AI setup)
 /docs/REVIEW.md                                (reviewer instructions)
+/docs/ai-setup-adjustments.md                  (findings about the AI setup and the instructions to apply them)
 /docs/MEMORY.md                                (memory index, generated)
 /docs/memories/MEM-[NAME].md                   (one memory per file)
 /docs/design/                                  (design documents of the user)
@@ -139,7 +140,7 @@ The user can draw a route on the map, save it and load it again.
 | D24 | `Goal` has one to three sentences. It names the user result, not the implementation. |
 | D25 | A feature text has max 12 words. `Type` is `new` or `update`. |
 | D26 | An acceptance is one check: `TEST <name> passes`, `COMMAND <name> passes` or `MANUAL <name>`. |
-| D27 | The user runs a `MANUAL` check. A tool records the answer of the user. |
+| D27 | The user runs a `MANUAL` check, or delegates it to the agent for one step or one plan. A tool records the answer and its source. |
 | D28 | `python -m tools.progress` writes `Plans` and `State`. `State` is `open`, `in progress`, `done`, `dropped` or `migrated`. |
 | D29 | A feature is `done` when an archived plan lists it in `done` and no active plan references it. |
 | D30 | After the document review, only the user adds, changes or deletes a feature. |
@@ -464,7 +465,7 @@ A gate runs its checks itself. A gate failure names the missing item.
 | D110 | A step that changes a protected path needs `python -m tools.approve <plan> <step>` before the step gate. |
 | D111 | A plan close that changes a protected path needs `python -m tools.approve <plan> close` before the plan review. |
 | D112 | Commit before the approval. The record holds the `HEAD` hash. A later change to a protected path invalidates it. |
-| D113 | Ask the user first. Then pass the answer with `--answer yes` or `--answer no`. Never answer for the user. |
+| D113 | Ask the user first. Then pass the answer with `--answer yes` or `--answer no`. Never answer for the user. A delegated manual check gets `--by agent`. |
 | D114 | A milestone file and a plan file are editable while `status` is `draft`. |
 | D115 | After the creation commit, each write to a milestone file, `plan.md`, `progress.md` and `PROGRESS.md` goes through a tool. |
 | D116 | Never delete, rename or move a milestone file, a plan folder or an archive entry by hand. |
@@ -612,7 +613,7 @@ Open `docs/wiki/index.html` in a browser, or run `python -m http.server 8000 --d
 | Hooks | `.claude/settings.json` | `.codex/hooks.json` | `.kilo/plugin/setup-hooks.ts` |
 | MCP servers | `.mcp.json` | `.codex/config.toml` | `kilo.jsonc` |
 | Model class | `haiku`, `sonnet`, `opus` | reasoning effort `low`, `medium`, `high` | the model of the session |
-| Tool limits of an agent | `tools` list, `agent_guard` hook | stated in the prompt only | `permission` map |
+| Tool limits of an agent | `tools` list, project hook `agent_guard` with `agent_type` | stated in the prompt only | `permission` map |
 
 | ID | Rule |
 |---|---|
@@ -621,11 +622,12 @@ Open `docs/wiki/index.html` in a browser, or run `python -m http.server 8000 --d
 | D162 | Change an MCP server through `project-update` only. |
 | D163 | A provider change takes effect in the next session. Kilo needs `/reload`. |
 
-Provider facts, checked against the provider documentation in November 2026. The machine of the check had Claude Code 2.1.201. It had no Codex and no Kilo.
+Provider facts, checked against the provider documentation in November 2026. The machines of the checks had Claude Code 2.1.201 and 2.1.322. They had no Codex and no Kilo.
 
 | Subject | Result |
 |---|---|
-| Claude Code: agent hook in the frontmatter | Verified. The hook fires when the agent runs as a subagent. `agent_guard` blocked a command. |
+| Claude Code: agent hook in the frontmatter | Not reliable. It fired in a headless session of 2.1.201. It did not fire in the VS Code extension of 2.1.322. The guard runs as a project hook. |
+| Claude Code: hook input in a subagent | `agent_type` and `agent_id` since 2.1.290. A project hook runs inside each subagent. |
 | Claude Code: environment variable in `.mcp.json` | `${NAME}` in `command`, `args`, `env`, `url` and `headers`. |
 | Claude Code: provider memory | `autoMemoryEnabled: false` in `.claude/settings.json`. |
 | Claude Code: question tool | `AskUserQuestion`, one to four questions, two to four options, multiple select. |
@@ -687,6 +689,7 @@ ci = "none"
 test_suite = "pytest"
 test_command = "pytest -k {name}"
 test_support = "tests/support"
+dependency_source = ".venv/Lib/site-packages"
 
 [[language]]
 name = "python"
@@ -709,6 +712,7 @@ build = "python -m build"
 | D172 | `{files}` is optional. The tool replaces it with one changed file, or with the source and test folders. |
 | D173 | Each command is a command line of the stack of the project, for example `cargo test {name}` or `cargo clippy`. |
 | D174 | A project with a second test runner binds it as an entry of `[commands]`. |
+| D182 | `dependency_source` is optional. It names the folder with the source of the installed dependencies. |
 
 ## Tool reference
 Each tool runs as `python -m tools.<name>`. A tool without arguments prints its usage when it needs arguments.
@@ -717,15 +721,15 @@ Each tool runs as `python -m tools.<name>`. A tool without arguments prints its 
 |---|---|---|
 | `setup` | | Bootstrap. |
 | `provider` | none, `check` | Generates the provider files. Checks that they are current. |
-| `check` | none, `<files>` | Runs lint, format, encoding, docs lint, memory lint, provider, wiki and progress checks. |
+| `check` | none, `<files>`, `--format-only` | Runs lint, format, encoding, docs lint, memory lint, provider, wiki and progress checks. `--format-only` skips the lint. |
 | `pre_write`, `post_write` | | Hook entries. Block a protected write. Run the generator and the checks for a changed file. |
-| `agent_guard` | `<agent> <bash or edit>` | Hook entry. Checks a call against `bash_allow` and `edit_allow`. |
+| `agent_guard` | `<bash or edit>` | Hook entry. Reads the agent from `agent_type` of the hook input. Checks a call against `bash_allow` and `edit_allow`. |
 | `project` | `init`, `update`, `check` | Validates the bindings and commits them. |
 | `progress` | none, `check`, `status`, `add-feature`, `drop-feature`, `add-bug`, `fix-bug`, `drop-bug` | Writes `PROGRESS.md` and the feature tables. Prints the next step. Writes features and bugs. |
 | `milestone_create` | `start <name>`, `commit` | Creates the branch and the draft file. Validates and commits the milestone. |
 | `plan_create` | `start <feature or fix> <name>`, `commit` | Creates the draft folder. Validates and commits the plan. |
-| `step_close` | `start`, `review`, `close`, `revert`, `block`, `unblock`, `add-fix` | Makes each state change of a step. |
-| `plan_close` | none, `check`, `verify-bug`, `tuning`, `reviewed`, `review-passed`, `block`, `unblock` | Makes each state change of the plan close. |
+| `step_close` | `start`, `review`, `close [--answer] [--by agent]`, `revert`, `block`, `unblock`, `add-fix` | Makes each state change of a step. |
+| `plan_close` | none, `check [--answer] [--by agent]`, `verify-bug`, `tuning`, `reviewed`, `review-passed`, `block`, `unblock` | Makes each state change of the plan close. |
 | `milestone_close` | none, `check`, `migrate <id>` | Closes, merges or migrates a milestone. |
 | `approve` | `<plan> <step or close>` | Writes an approval record of the user. |
 | `test` | none, `<name>`, `--command`, `--step <step>` | Runs the suite, a test or a command. Writes evidence. |

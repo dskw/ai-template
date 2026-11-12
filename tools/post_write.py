@@ -19,7 +19,7 @@ def run(args):
             code, output = tool(generator)
             if code != 0:
                 failed.append(f"python -m tools.{generator} failed:\n{output.rstrip()}")
-    code, output = tool("check", *[name for name in names if (ROOT / name).is_file()])
+    code, output = tool("check", "--format-only", *[name for name in names if (ROOT / name).is_file()])
     if code != 0:
         failed.append(output.rstrip())
     if failed:

@@ -40,6 +40,7 @@ Fix: return before the division when points is empty
 - Drop a problem that has no rule or no trigger.
 - `Pre-existing` marks a problem that the step did not introduce.
 - `Class` names every place where the same fix applies.
+- `Trigger` and `Class` have max 25 words per sentence.
 - `Fix` is max 20 words.
 
 ## Out of scope

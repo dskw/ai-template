@@ -29,13 +29,6 @@ def agent_file(agent):
         "tools": ", ".join(name for tool in agent["tools"] for name in TOOLS[tool]),
         "model": MODELS[agent["model"]],
     }
-    guards = []
-    if "bash_allow" in agent and "bash" in agent["tools"]:
-        guards.append({"matcher": "Bash", "hooks": [command_hook(f"python -m tools.agent_guard {agent['name']} bash")]})
-    if "edit_allow" in agent and {"edit", "write"} & set(agent["tools"]):
-        guards.append({"matcher": "Edit|Write", "hooks": [command_hook(f"python -m tools.agent_guard {agent['name']} edit")]})
-    if guards:
-        meta["hooks"] = {"PreToolUse": guards}
     return "---\n" + yaml.safe_dump(meta, sort_keys=False, allow_unicode=True, width=1000) + "---\n\n" + agent["body"]
 
 

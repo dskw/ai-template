@@ -8,6 +8,18 @@ const hooks = [
     "timeout": 30
   },
   {
+    "event": "tool.execute.before",
+    "matcher": "bash",
+    "command": "python -m tools.agent_guard bash",
+    "timeout": 30
+  },
+  {
+    "event": "tool.execute.before",
+    "matcher": "edit|write|multiedit|apply_patch",
+    "command": "python -m tools.agent_guard edit",
+    "timeout": 30
+  },
+  {
     "event": "tool.execute.after",
     "matcher": "edit|write|multiedit|apply_patch",
     "command": "python -m tools.post_write",

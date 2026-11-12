@@ -77,7 +77,7 @@ def passes(acceptance, item, problems):
     return test.execute(kind, name)[0] == 0
 
 
-def check(args, answer):
+def check(args, answer, by=None):
     plan, milestone, problems = context()
     code = 0
     for item in plan["ids"]:
@@ -86,7 +86,7 @@ def check(args, answer):
             continue
         kind, name = parse_check(row["Acceptance"])
         if kind == "MANUAL":
-            if answer is None and not os.isatty(0):
+            if answer is None:
                 print(f"{item} MANUAL {name}: ask the user, then run python -m tools.plan_close check {item} --answer yes|no")
                 code = 1
                 continue
@@ -94,7 +94,8 @@ def check(args, answer):
             problems.record("manual passed" if passed else "manual failed", item)
         else:
             passed = test.execute(kind, name)[0] == 0
-        print(f"{item} {row['Acceptance']}: {'pass' if passed else 'fail'}")
+        source = " (checked by the agent on request of the user)" if by == "agent" else ""
+        print(f"{item} {row['Acceptance']}: {'pass' if passed else 'fail'}{source}")
     problems.save()
     return code
 
@@ -374,11 +375,12 @@ def unblock(args):
 
 def run(args):
     answer = take_option(args, "--answer")
+    by = take_option(args, "--by")
     command, rest = (args[0], args[1:]) if args else ("close", [])
     if command == "close" and not rest:
         return close()
     if command == "check":
-        return check(rest, answer)
+        return check(rest, answer, by)
     if command == "verify-bug" and len(rest) == 1:
         return verify_bug(rest[0])
     if command == "unblock":
@@ -388,7 +390,7 @@ def run(args):
         return simple[command]()
     fail(
         "usage: python -m tools.plan_close [close | tuning | reviewed | review-passed | block"
-        " | check [<id> --answer yes|no] | verify-bug <bug>"
+        " | check [<id> --answer yes|no [--by agent]] | verify-bug <bug>"
         ' | unblock <accept "<reason>" | drop <id> "<reason>" | replan <id>>]'
     )
 

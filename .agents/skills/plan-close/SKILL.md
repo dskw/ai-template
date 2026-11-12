@@ -15,7 +15,7 @@ The rules are in `docs/DOCS_CONVENTIONS.md`, sections Plan close, Tuning and Gat
 6. Show the user each entry of `extensions.md` without decision and each tuning change. Ask for the decisions.
 7. Write each decision into `extensions.md`. Run `python -m tools.progress add-feature` for each approved entry.
 8. Apply the tuning changes that the user agreed to.
-9. Run `python -m tools.plan_close check`. For a manual check, ask the user and pass the answer as the tool prints.
+9. Run `python -m tools.plan_close check`. For a manual check, prepare the package of the section Manual verification of `step-run`. Ask the user and pass the answer as the tool prints.
 10. For a fix plan, run `bug-fix`.
 11. Commit the writes of the steps before.
 12. When a protected path changed, ask the user and run `python -m tools.approve <plan> close --answer <yes|no>`.

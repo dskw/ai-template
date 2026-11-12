@@ -34,6 +34,26 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -m tools.agent_guard bash",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -m tools.agent_guard edit",
+            "timeout": 30
+          }
+        ]
       }
     ],
     "PostToolUse": [

@@ -8,6 +8,7 @@ Not initialized. Run the `project-init` skill. The design documents are in `docs
 - `docs/TEST_CONVENTIONS.md`: read it before you write, change or review a test.
 - `docs/DOCS_CONVENTIONS.md`: read it before you write a document, run a skill or change the setup.
 - `docs/REVIEW.md`: read it before you review a change or change a protected path.
+- `docs/ai-setup-adjustments.md`: add a finding when the AI setup causes a problem. Keep it independent of the project.
 
 ## Status
 Run `python -m tools.progress status` at session start when no hook injected its output. Continue with the step it prints. Never start a different step. When it prints `bugfix phase`, start a fix plan with `plan-create`.

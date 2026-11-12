@@ -30,6 +30,26 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "shell|local_shell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -m tools.agent_guard bash",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -m tools.agent_guard edit",
+            "timeout": 30
+          }
+        ]
       }
     ],
     "PostToolUse": [
