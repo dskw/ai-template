@@ -507,7 +507,11 @@ class Problems:
     def __init__(self, plan):
         self.path = plan["dir"] / "problems.md"
         self.rel = rel(self.path)
+        self.rows, self.records = [], []
         if not self.path.exists():
+            if plan.get("archived"):
+                self.text = ""
+                return
             fail(f"{self.rel}: the file is missing")
         self.text = read(self.path)
         self.rows = read_table(self.text, "Problems", PROBLEM_HEADER, self.rel)

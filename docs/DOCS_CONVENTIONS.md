@@ -244,6 +244,7 @@ closed:
 | D50 | `status` is `draft`, `in progress`, `blocked` or `closed`. |
 | D51 | A plan references ids of its own milestone only. |
 | D52 | `python -m tools.plan_close` writes `done`: the ids whose acceptance check passed at plan close. |
+| D185 | The archive holds files with content only. `plan_close` removes `extensions.md`, `problems.md` and `evidence/` from the plan folder when they hold nothing beyond their template. |
 | D53 | A step names the feature id or the bug id that it serves. |
 | D54 | A step text has max 20 words. The verification is one check in the form of an acceptance. |
 | D55 | The verification passes after that step alone. Cut a step as one increment that the user can see. |
@@ -436,7 +437,7 @@ flowchart TD
 | ID | Rule |
 |---|---|
 | D99 | `python -m tools.milestone_close check` runs each acceptance check of the feature table. |
-| D100 | `python -m tools.milestone_close` applies the gate, archives the file, merges the branch and deletes it. |
+| D100 | `python -m tools.milestone_close` applies the gate, archives the file, merges the branch with a squash and deletes it. |
 | D101 | The user can close a milestone early. Close the active plan first. |
 | D102 | For a premature close, write the new milestone as draft with `python -m tools.milestone_create start <name> --migrate`. |
 | D103 | The draft starts with the migrated features in id order and the migrated bugs, with new ids. |
@@ -486,7 +487,7 @@ The tools make these commits. The agent never makes them by hand.
 | `Bug dropped: M003 B02 <reason>` | `progress drop-bug` |
 | `Review passed: M003-P002` | `plan_close review-passed` |
 | `Version: 1.12.1`, `Plan closed: M003-P002` | `plan_close` |
-| `Milestone closed: M003` | `milestone_close` |
+| `Milestone closed: M003` | `milestone_close`, on the milestone branch and as the squash commit on the main branch |
 
 | ID | Rule |
 |---|---|
@@ -495,6 +496,8 @@ The tools make these commits. The agent never makes them by hand.
 | D120 | Each milestone has one branch, for example `milestone/M003-route-planning`. Each commit of the milestone is on it. |
 | D121 | A tool stops on the wrong branch, on a detached `HEAD`, or during an open merge or rebase. |
 | D122 | Resolve a merge conflict of the milestone close, run `git add`, then run the tool again. |
+| D183 | The main branch gets one commit per milestone: `Milestone closed: M003`, the goal and the done, dropped and migrated features. |
+| D184 | The commits of the milestone branch stay on that branch until the tool deletes it. A tool reads the history of the main branch for no state. |
 | D123 | Do not use worktrees unless the user asks. Remove a worktree at the end of its task. |
 
 ## Versions and deployment

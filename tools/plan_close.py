@@ -18,7 +18,6 @@ from tools._lib import (
     find_milestone,
     git,
     git_ok,
-    has_commit,
     load_project,
     main,
     milestones,
@@ -265,9 +264,24 @@ def fix_one(bug_id):
     print(f"Bug fixed: {milestone['id']} {bug_id}")
 
 
+def prune(folder):
+    extensions = folder / "extensions.md"
+    if extensions.exists() and not read_table(read(extensions), None, EXTENSION_HEADER, rel(extensions)):
+        extensions.unlink()
+    problems = folder / "problems.md"
+    if problems.exists():
+        loaded = Problems({"dir": folder, "archived": False})
+        if not loaded.rows and not loaded.records:
+            problems.unlink()
+    evidence = folder / "evidence"
+    if evidence.is_dir() and not any(evidence.iterdir()):
+        evidence.rmdir()
+
+
 def finish_archive():
+    pending = dirty_files()
     for plan in plans():
-        if plan["archived"] and not has_commit(f"Plan closed: {plan['id']}"):
+        if plan["archived"] and any(name.startswith(plan["rel"] + "/") for name in pending):
             progress.regenerate()
             commit(f"Plan closed: {plan['id']}")
             print(f"Plan closed: {plan['id']}")
@@ -319,6 +333,7 @@ def close():
     plan["meta"]["closed"] = today()
     save_plan(plan)
     shutil.rmtree(plan["dir"] / "tmp", ignore_errors=True)
+    prune(plan["dir"])
     os.rename(plan["dir"], PLANS / "archive" / plan["dir"].name)
     progress.regenerate()
     commit(f"Plan closed: {plan['id']}")

@@ -15,7 +15,6 @@ from tools._lib import (
     git_dir,
     load_project,
     main,
-    merging,
     milestone_branch,
     milestones,
     open_milestone,
@@ -115,15 +114,31 @@ def closed_branch():
     return None
 
 
+def squash_marker():
+    return git_dir() / "MILESTONE_SQUASH"
+
+
+def summary(name):
+    milestone = next(m for m in milestones() if m["archived"] and milestone_branch(m) == name)
+    lines = [f"Milestone closed: {milestone['id']}", "", milestone_create.section(milestone["text"], "Goal") or ""]
+    for state, label in (("done", "Done"), ("dropped", "Dropped"), ("migrated", "Migrated")):
+        rows = [row["Feature"] for row in milestone["features"] if row["State"] == state]
+        if rows:
+            lines += ["", f"{label}:"] + [f"- {text}" for text in rows]
+    return "\n".join(lines)
+
+
 def merge():
     conflicts_file = git_dir() / "MILESTONE_CONFLICTS"
+    marker = squash_marker()
     main_branch = load_project()["main_branch"]
-    if not merging():
+    if not marker.exists():
         name = closed_branch()
         if not name:
             return
         git("checkout", main_branch)
-        code, output = shell(["git", "merge", "--no-ff", "--no-commit", name])
+        write(marker, name + "\n")
+        code, output = shell(["git", "merge", "--squash", name])
         conflicts = git("diff", "--name-only", "--diff-filter=U").splitlines()
         if conflicts:
             write(conflicts_file, "\n".join(conflicts) + "\n")
@@ -131,13 +146,12 @@ def merge():
                 "merge conflict in:\n" + "\n".join(conflicts) + "\nResolve the files and run git add."
                 " Then run the same command again"
             )
-        if code != 0 and not merging():
+        if code != 0:
             fail(f"git merge failed:\n{output}")
+    name = read(marker).strip()
     if git("diff", "--name-only", "--diff-filter=U"):
         fail("the merge has files with a conflict, resolve them and run git add")
-    tip = read(git_dir() / "MERGE_HEAD").strip()
-    name = git("for-each-ref", "--points-at", tip, "--format=%(refname:short)", "refs/heads/milestone").splitlines()[0]
-    message = f"Merge {name}"
+    message = summary(name)
     if conflicts_file.exists():
         for check in ("check", "test"):
             code, output = tool(check)
@@ -146,26 +160,29 @@ def merge():
         message += "\n\nConflicts resolved in:\n" + read(conflicts_file)
         conflicts_file.unlink()
     git("commit", "-m", message)
-    git("branch", "-d", name)
-    print(f"merged {name} into {main_branch}")
+    git("branch", "-D", name)
+    marker.unlink()
+    print(f"merged {name} into {main_branch} as one commit")
 
 
 def close():
+    if squash_marker().exists():
+        return merge()
     milestone = open_milestone()
-    if milestone and not merging():
+    if milestone:
         require_branch(milestone_branch(milestone))
         gate(milestone, False)
         archive(milestone)
-    elif not merging() and not closed_branch():
+    elif not closed_branch():
         require_branch()
         print("no open milestone")
     merge()
 
 
 def migrate(new_id):
-    old = open_milestone()
+    old = None if squash_marker().exists() else open_milestone()
     new = find_milestone(new_id)
-    if old and old["id"] != new_id and not merging():
+    if old and old["id"] != new_id:
         require_branch(milestone_branch(old))
         if active_plan():
             fail(f"plan {active_plan()['id']} is active, close it first")
