@@ -136,7 +136,7 @@ def release(milestone):
     lines += [f"- Update: {row['Feature']}" for row in done if row["Type"] != "new"]
     lines += [f"- Bugfix: {text}" for text in bugs]
     stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    entry = f"# {version} {stamp}\n" + "\n".join(lines) + "\n"
+    entry = f"# v{version} - {stamp}\n" + "\n".join(lines) + "\n"
     write(CHANGELOG, entry + ("\n" + previous.strip("\n") + "\n" if previous.strip() else ""))
     commit(f"Version: {version}", [CHANGELOG])
     print(f"Version: {version}")

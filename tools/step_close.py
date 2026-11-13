@@ -92,7 +92,7 @@ def revert(step_id):
         fail("the work tree is not clean, commit the changes first")
     base = step_base(problems, step_id)
     lines = git("log", "--format=%H%x09%s", f"{base}..HEAD").splitlines()
-    commits = [line.split("\t")[0] for line in lines if not re.match(r"^\S+\t(Bug reported|Bug dropped): ", line)]
+    commits = [line.split("\t")[0] for line in lines if not re.match(r"^\S+\t(Bug reported|Bug dropped|Milestone updated): ", line)]
     if commits:
         code, output = shell(["git", "revert", "--no-commit", *commits])
         if code != 0:

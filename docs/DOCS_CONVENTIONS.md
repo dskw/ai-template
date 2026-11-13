@@ -146,7 +146,7 @@ The user can draw a route on the map, save it and load it again.
 | D187 | A manual check package of a step or a plan goes into `docs/plans/<plan>/tmp/manual-check/`, one of the milestone close into `docs/milestones/tmp/manual-check/`. A close fails while a package is in use. |
 | D28 | `python -m tools.progress` writes `Plans` and `State`. `State` is `open`, `in progress`, `done`, `dropped` or `migrated`. |
 | D29 | A feature is `done` when an archived plan lists it in `done` and no active plan references it. |
-| D30 | After the document review, only the user adds, changes or deletes a feature. |
+| D30 | After the document review, only the user adds, changes or deletes a feature. The user changes the `Goal` and the `Out of scope` list of the open milestone through `python -m tools.progress set-goal` and `out-of-scope`. |
 | D31 | A need found during a plan goes to `extensions.md`. It becomes a feature only with user approval. |
 | D32 | Only the user drops a feature. Ask with the reason. The dropped row holds the reason in `Acceptance`. |
 | D33 | `Out of scope` lists what the milestone does not deliver. Do not implement an item of this list. |
@@ -489,6 +489,7 @@ The tools make these commits. The agent never makes them by hand.
 | `Bug reported: M003 B01` | `progress add-bug` |
 | `Bug fixed: M003 B01` | `plan_close` |
 | `Bug dropped: M003 B02 <reason>` | `progress drop-bug` |
+| `Milestone updated: M003` | `progress set-goal`, `progress out-of-scope` |
 | `Review passed: M003-P002` | `plan_close review-passed` |
 | `Plan closed: M003-P002` | `plan_close` |
 | `Version: 1.12.0` | `milestone_close`, on the milestone branch |
@@ -507,11 +508,11 @@ The tools make these commits. The agent never makes them by hand.
 
 ## Versions and deployment
 ```
-# 1.12.0 2026-10-28 18:42:10
+# v1.12.0 - 2026-10-28 18:42:10
 - New feature: User permission system added
 - Update: Route save dialog shows the file name before saving
 
-# 1.11.25 2026-09-01 12:14:00
+# v1.11.25 - 2026-09-01 12:14:00
 - Bugfix: User names with non-ASCII characters fail registration
 ```
 
@@ -733,7 +734,7 @@ Each tool runs as `python -m tools.<name>`. A tool without arguments prints its 
 | `pre_write`, `post_write` | | Hook entries. Block a protected write. Run the generator and the checks for a changed file. |
 | `agent_guard` | `<bash or edit>` | Hook entry. Reads the agent from `agent_type` of the hook input. Checks a call against `bash_allow` and `edit_allow`. |
 | `project` | `init`, `update`, `check` | Validates the bindings and commits them. |
-| `progress` | none, `check`, `status`, `add-feature`, `drop-feature`, `add-bug`, `fix-bug`, `drop-bug` | Writes `PROGRESS.md` and the feature tables. Prints the next step. Writes features and bugs. |
+| `progress` | none, `check`, `status`, `add-feature`, `drop-feature`, `set-goal`, `out-of-scope <add or remove>`, `add-bug`, `fix-bug`, `drop-bug` | Writes `PROGRESS.md` and the feature tables. Prints the next step. Writes features, bugs, the goal and the out of scope list. |
 | `milestone_create` | `start <name>`, `commit` | Creates the branch and the draft file. Validates and commits the milestone. |
 | `plan_create` | `start <feature or fix> <name>`, `commit` | Creates the draft folder. Validates and commits the plan. |
 | `step_close` | `start`, `review`, `close [--answer] [--by agent]`, `revert`, `block`, `unblock`, `add-fix` | Makes each state change of a step. |

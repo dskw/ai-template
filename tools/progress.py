@@ -265,6 +265,49 @@ def require_milestone():
     return milestone
 
 
+def section_span(lines, heading, name):
+    if f"## {heading}" not in lines:
+        fail(f"{name}: the section '## {heading}' is missing")
+    start = lines.index(f"## {heading}") + 1
+    end = next((index for index in range(start, len(lines)) if lines[index].startswith("## ")), len(lines))
+    return start, end
+
+
+def replace_section(milestone, heading, body):
+    lines = milestone["text"].split("\n")
+    start, end = section_span(lines, heading, milestone["rel"])
+    tail = lines[end:]
+    lines = lines[:start] + body + ([""] if tail else []) + tail
+    milestone["text"] = "\n".join(lines).rstrip("\n") + "\n"
+    save_milestone(milestone)
+    commit(f"Milestone updated: {milestone['id']}", [milestone["path"]])
+
+
+def set_goal(text):
+    milestone = require_milestone()
+    check_text(text, 60, "the goal")
+    replace_section(milestone, "Goal", [text])
+    print(f"goal set {milestone['id']}")
+
+
+def out_of_scope(action, item):
+    milestone = require_milestone()
+    check_text(item, 20, "the item")
+    lines = milestone["text"].split("\n")
+    start, end = section_span(lines, "Out of scope", milestone["rel"])
+    items = [line[2:] for line in lines[start:end] if line.startswith("- ")]
+    if action == "add":
+        if item in items:
+            fail(f"'{item}' is already out of scope")
+        items.append(item)
+    else:
+        if item not in items:
+            fail(f"'{item}' is not in the out of scope list of {milestone['id']}")
+        items.remove(item)
+    replace_section(milestone, "Out of scope", [f"- {entry}" for entry in items])
+    print(f"out of scope {action} {milestone['id']}")
+
+
 def drop_feature(feature_id, reason):
     milestone = require_milestone()
     check_text(reason, 12, "the reason")
@@ -372,6 +415,10 @@ def run(args):
         add_feature(*rest)
     elif command == "drop-feature" and len(rest) == 2:
         drop_feature(*rest)
+    elif command == "set-goal" and len(rest) == 1:
+        set_goal(rest[0])
+    elif command == "out-of-scope" and len(rest) == 2 and rest[0] in ("add", "remove"):
+        out_of_scope(*rest)
     elif command == "add-bug" and len(rest) == 4:
         add_bug(*rest)
     elif command == "fix-bug" and len(rest) == 1:
@@ -385,6 +432,7 @@ def run(args):
             "usage: python -m tools.progress [check | status"
             ' | add-feature <milestone> <new|update> "<text>" "<acceptance>"'
             ' | drop-feature <feature> "<reason>"'
+            ' | set-goal "<text>" | out-of-scope <add|remove> "<item>"'
             ' | add-bug "<text>" "<feature or empty>" "<source>" "<acceptance>"'
             ' | fix-bug <bug> | drop-bug <bug> "<reason>"]'
         )

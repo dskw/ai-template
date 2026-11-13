@@ -170,7 +170,7 @@ def commit(message, paths=None):
 
 def current_version():
     text = git("show", "HEAD:CHANGELOG.md", check=False) if git_ok("cat-file", "-e", "HEAD:CHANGELOG.md") else ""
-    match = re.search(r"^# (\d+)\.(\d+)\.(\d+) ", text, re.M)
+    match = re.search(r"^# v?(\d+)\.(\d+)\.(\d+)\b", text, re.M)
     if match:
         return [int(part) for part in match.groups()], text
     return [int(part) for part in str(load_project()["start_version"]).split(".")], text

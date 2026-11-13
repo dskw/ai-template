@@ -13,7 +13,7 @@ The rules are in `docs/DOCS_CONVENTIONS.md`, sections Plan close, Tuning and Gat
 4. Compare the changes of the plan with the pages in `docs/wiki/`. Update each page that the changes make wrong or incomplete.
 5. Run `python -m tools.plan_close tuning`. Decide for each line that starts with `tune` whether a rule change helps. Prepare the change when it does.
 6. Show the user each entry of `extensions.md` without decision and each prepared tuning change. Ask for the decisions.
-7. Write each decision into `extensions.md`. Run `python -m tools.progress add-feature` for each approved entry.
+7. Write each decision into `extensions.md`. Run `python -m tools.progress add-feature` for each approved entry. When the new feature conflicts with an item of `Out of scope`, run `python -m tools.progress out-of-scope remove "<item>"` in the same turn.
 8. Apply the tuning changes that the user agreed to.
 9. Run `python -m tools.plan_close check`. For a manual check, prepare the package of the section Manual verification of `step-run` in `docs/plans/<plan>/tmp/manual-check/`. Ask the user and pass the answer as the tool prints.
 10. For a fix plan, run `bug-fix`.

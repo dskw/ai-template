@@ -20,6 +20,9 @@ The format and the rules of a milestone file are in `docs/DOCS_CONVENTIONS.md`, 
 11. Fix each problem in the draft file. When the first review posted a problem, run a second review of the answers and the changed lines only.
 12. Run `python -m tools.milestone_create commit`. Fix each item that it names and run it again.
 
+## Scope change of an open milestone
+After the creation commit, change the goal with `python -m tools.progress set-goal "<text>"`. Change the out of scope list with `python -m tools.progress out-of-scope add "<item>"` or `out-of-scope remove "<item>"`. Run them only on a user decision.
+
 ## Milestone for bugs only
 When the user reports a bug and no milestone is open, write a milestone with an empty feature table and the bug rows. The goal text is in `docs/DOCS_CONVENTIONS.md`, section Bugs.
 
