@@ -350,6 +350,7 @@ stateDiagram-v2
 | `bug verified withdrawn <bug>` | `plan_close unblock`, `progress drop-bug` |
 | `tuning done` | `plan_close tuning` |
 | `plan reviewed` | `plan_close reviewed` |
+| `document reviewed` | `plan_create reviewed` |
 | `review passed <hash>` | `plan_close review-passed` |
 | `plan blocked <problems>` | `plan_close block` |
 | `plan unblocked <choice> <id>` | `plan_close unblock` |

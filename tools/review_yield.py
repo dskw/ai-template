@@ -6,7 +6,7 @@ from collections import Counter
 from tools._lib import CHANGELOG, Problems, main, plans, read
 
 KINDS = ("step review", "plan review")
-ROUNDS = ("1", "2")
+ROUNDS = ("1", "2", "3")
 
 
 def outcome(row):
@@ -30,10 +30,10 @@ def reviews(problems):
         if record["type"] == "step reviewed":
             subject = record["ids"][0]
             rounds[subject] += 1
-            found.append(("step review", subject, str(min(rounds[subject], 2))))
+            found.append(("step review", subject, str(min(rounds[subject], 3))))
         elif record["type"] == "plan reviewed":
             rounds["plan"] += 1
-            found.append(("plan review", "plan", str(min(rounds["plan"], 2))))
+            found.append(("plan review", "plan", str(min(rounds["plan"], 3))))
     return found
 
 
