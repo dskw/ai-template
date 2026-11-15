@@ -13,7 +13,7 @@ The rules are in `docs/DOCS_CONVENTIONS.md`, section Plan close. The problem for
 4. Write one row per posted problem into the `Problems` table with `plan` in the `Step` column. Run `python -m tools.check` with the path of the problems file and fix each sentence that it names.
 5. In a later round, write the result of the reviewer into the `Check` cell of each problem of the round before.
 6. For each `Pre-existing` problem, run `bug-report` with the plan id and the problem id as source. Write `bug <id>` as its answer.
-7. The implementor answers each problem and commits each fix.
+7. Start the `implementor` agent with the plan folder and the problem rows. It answers each problem and commits each fix.
 8. When the round posted an `Important` problem, start again at step 1 for the next round, up to round 3.
 9. When an `Important` problem is open after round 3, follow the section Fix step.
 10. Commit all changes except `problems.md`. Run `python -m tools.plan_close review-passed`.

@@ -392,6 +392,7 @@ sequenceDiagram
 | D80 | No other step starts while a step has the state `blocked`. |
 | D81 | The agent commits during a step as often as necessary, with a message of its own. |
 | D188 | Tuning requests of a manual check belong to the step of the check, also when they touch an earlier step of the feature. |
+| D195 | The `implementor` agent writes the code and the documents of a step in a fresh context. The main session runs the tools and reads the reports. |
 | D194 | A step revert keeps the commits outside the step: memories, setup findings, milestone files and other plans. It names each kept commit. |
 | D186 | Start the step before the first write to a source or test folder. The pre-commit check rejects such a change while a plan is active and no step is in progress. |
 

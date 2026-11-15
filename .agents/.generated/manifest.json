@@ -1,6 +1,7 @@
 {
-  "source_hash": "14ef996ee020557ed85430f842e2f3953313689f25473a26205ef11aec02f6d5",
+  "source_hash": "dbf8e45d70ad247d1f9f7c7405af3739e6406380c7f2510e5c123449a9c36beb",
   "files": [
+    ".claude/agents/implementor.md",
     ".claude/agents/reviewer.md",
     ".claude/settings.json",
     ".claude/skills/bug-fix/SKILL.md",
@@ -19,9 +20,11 @@
     ".claude/skills/review-plan/SKILL.md",
     ".claude/skills/review-step/SKILL.md",
     ".claude/skills/step-run/SKILL.md",
+    ".codex/agents/implementor.toml",
     ".codex/agents/reviewer.toml",
     ".codex/config.toml",
     ".codex/hooks.json",
+    ".kilo/agents/implementor.md",
     ".kilo/agents/reviewer.md",
     ".kilo/plugin/setup-hooks.ts",
     ".mcp.json",

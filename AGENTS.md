@@ -14,6 +14,7 @@ Not initialized. Run the `project-init` skill. The design documents are in `docs
 Run `python -m tools.progress status` at session start when no hook injected its output. Continue with the step it prints. Never start a different step. When it prints `bugfix phase`, start a fix plan with `plan-create`.
 
 ## Skills
+- The main session orchestrates: it runs the tools, asks the user and reads the agent reports. The `implementor` agent writes the code and the `reviewer` agent reviews it.
 - `project-init`: binds the setup to the project. Use it once, before the first milestone.
 - `project-update`: changes a project binding. Use it for a new language, tool, pipeline or MCP server.
 - `milestone-propose`: proposes the next milestone. Use it when the user asks for suggestions.
