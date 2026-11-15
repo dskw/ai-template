@@ -39,6 +39,9 @@ Each rule has an id. A review problem names the id.
 | T18 | Run one test with `python -m tools.test <name>`. Run the suite with `python -m tools.test`. |
 | T19 | Run the test of a step with `--step <step>`. The tool writes the evidence file. |
 | T20 | In a fix step, run the regression test with `--step` before the fix and again after the fix. |
+| T21 | A step runs its verification and each test that covers the changed code. A plan close runs the checks of its `Verification` section and the tests that the plan changed or added. Only the milestone close runs the whole suite. |
+| T22 | A test covers the changed code when it calls, spawns or reads a changed module, type or function. Find these tests with a search of the test folders for the changed names. |
+| T23 | A failure of the whole suite at the milestone close is a bug. Run `bug-report` for it and fix it in a fix plan before the close. |
 
 ## Test selection
 ```mermaid

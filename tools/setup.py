@@ -6,7 +6,7 @@ import sys
 
 from tools._lib import ROOT, fail, git, git_dir, git_ok, main, run as shell, tool
 
-HOOK = "#!/bin/sh\nexec python -m tools.check\n"
+HOOK = "#!/bin/sh\nexec python -m tools.check --staged\n"
 
 
 def step(text):

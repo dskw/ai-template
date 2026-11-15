@@ -47,6 +47,7 @@ RECORD_TYPES = [
     "manual failed",
     "bug verified",
     "plan reviewed",
+    "document reviewed",
     "fix added",
     "review passed",
     "plan blocked",
@@ -287,13 +288,32 @@ def read_table(text, heading, header, path):
         cells = split_row(lines[number])
         if len(cells) != len(header):
             fail(f"{path}:{number + 1}: the row must have {len(header)} cells")
-        rows.append(dict(zip(header, cells)))
+        row = dict(zip(header, cells))
+        for name in STATE_COLUMNS & row.keys():
+            row[name] = plain_state(row[name])
+        rows.append(row)
     return rows
+
+
+# the state of a tracking table stands in bold when it is neither open nor empty
+STATE_COLUMNS = {"State", "Status"}
+
+
+def plain_state(cell):
+    return cell[2:-2] if len(cell) > 4 and cell.startswith("**") and cell.endswith("**") else cell
+
+
+def shown_state(cell):
+    state = plain_state(cell)
+    return state if state in ("", "open") else f"**{state}**"
 
 
 def table_lines(header, rows):
     table = [format_row(header), "|" + "---|" * len(header)]
-    return table + [format_row([row[name] for name in header]) for row in rows]
+    return table + [
+        format_row([shown_state(row[name]) if name in STATE_COLUMNS else row[name] for name in header])
+        for row in rows
+    ]
 
 
 def write_table(text, heading, header, rows, path):
@@ -548,8 +568,8 @@ class Problems:
             fail(f"{name}: the id must have the form N[NN]")
         if row["Step"] != "plan" and not STEP_ID.match(row["Step"]):
             fail(f"{name}: Step must be a step id or 'plan'")
-        if row["Round"] not in ("1", "2"):
-            fail(f"{name}: Round must be 1 or 2")
+        if row["Round"] not in ROUNDS:
+            fail(f"{name}: Round must be 1, 2 or 3")
         if row["Severity"] not in ("Important", "Nit", "Pre-existing"):
             fail(f"{name}: Severity must be Important, Nit or Pre-existing")
         for cell in ("Rule", "Location", "Trigger", "Class", "Fix"):
@@ -592,8 +612,19 @@ def settled(row):
     return row["Severity"] == "Pre-existing" or row["Answer"].startswith(("reverted", "user ", "fix "))
 
 
-def problem_errors(rows, hint):
+# a review has max 3 rounds; a further round runs only when the round before posted an Important problem
+ROUNDS = ("1", "2", "3")
+MAX_ROUNDS = len(ROUNDS)
+
+
+def posted_important(rows, round_number):
+    return any(row["Round"] == str(round_number) and row["Severity"] == "Important" for row in rows)
+
+
+def problem_errors(rows, hint, held):
+    """The gate errors of the problem rows of one subject after `held` review rounds."""
     errors = []
+    last = held >= MAX_ROUNDS
     for row in rows:
         if settled(row):
             continue
@@ -601,24 +632,30 @@ def problem_errors(rows, hint):
         if not row["Answer"]:
             errors.append(f"{row['ID']}: the problem has no answer")
         elif row["Check"].startswith("re-raised"):
-            if important:
-                errors.append(f"{row['ID']}: Important problem re-raised in round 2: {hint}")
-            elif row["Answer"].startswith("closed"):
-                errors.append(f"{row['ID']}: the closed answer was re-raised, fix the problem")
-        elif row["Round"] == "1" and not row["Check"]:
-            errors.append(f"{row['ID']}: the answer has no check, run the review again as round 2")
-        elif row["Round"] == "2" and important:
-            errors.append(f"{row['ID']}: Important problem posted in round 2: {hint}")
+            if important and last:
+                errors.append(f"{row['ID']}: Important problem re-raised in round {held}: {hint}")
+            elif important or row["Answer"].startswith("closed"):
+                errors.append(f"{row['ID']}: the problem was re-raised, fix it and run round {held + 1}")
+        elif important and not row["Check"]:
+            if row["Round"] == str(held) and last:
+                errors.append(f"{row['ID']}: Important problem posted in round {held}: {hint}")
+            elif row["Round"] == str(held):
+                errors.append(f"{row['ID']}: the fix of an Important problem has no check, run round {held + 1}")
+            else:
+                errors.append(f"{row['ID']}: the answer has no check, run the review again")
     return errors
 
 
-def open_important(rows):
+def open_important(rows, held):
+    """The Important problems that stay open after `held` rounds: unanswered, re-raised in the last round, or
+    posted in the last round."""
+    last = held >= MAX_ROUNDS
     return [
         row["ID"]
         for row in rows
         if not settled(row)
         and row["Severity"] == "Important"
-        and (not row["Answer"] or row["Check"].startswith("re-raised") or row["Round"] == "2")
+        and (not row["Answer"] or (last and (row["Check"].startswith("re-raised") or row["Round"] == str(held))))
     ]
 
 
@@ -673,6 +710,20 @@ def take_option(args, name):
         del args[index : index + 2]
         return value
     return None
+
+
+def stop_package(folder):
+    """Stops each program of a manual check package, so the close can remove the folder."""
+    folder = Path(folder)
+    if not folder.exists():
+        return
+    for path in folder.rglob("*"):
+        if not path.is_file() or not (path.suffix == ".exe" or os.access(path, os.X_OK) and not path.suffix):
+            continue
+        if os.name == "nt":
+            run(["taskkill", "/F", "/IM", path.name])
+        else:
+            run(["pkill", "-f", path.name])
 
 
 def hook_input():

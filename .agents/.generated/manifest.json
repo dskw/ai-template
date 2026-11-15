@@ -1,14 +1,17 @@
 {
-  "source_hash": "3f0144e121825d0707b8d0284a4484129ddf08970b3e82abb2abdd2d3001cbe6",
+  "source_hash": "14ef996ee020557ed85430f842e2f3953313689f25473a26205ef11aec02f6d5",
   "files": [
     ".claude/agents/reviewer.md",
     ".claude/settings.json",
     ".claude/skills/bug-fix/SKILL.md",
     ".claude/skills/bug-report/SKILL.md",
+    ".claude/skills/idea-add/SKILL.md",
+    ".claude/skills/idea-remove/SKILL.md",
     ".claude/skills/memory-consolidate/SKILL.md",
     ".claude/skills/memory-save/SKILL.md",
     ".claude/skills/milestone-close/SKILL.md",
     ".claude/skills/milestone-create/SKILL.md",
+    ".claude/skills/milestone-propose/SKILL.md",
     ".claude/skills/plan-close/SKILL.md",
     ".claude/skills/plan-create/SKILL.md",
     ".claude/skills/project-init/SKILL.md",

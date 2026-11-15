@@ -22,6 +22,16 @@
     ],
     "PreToolUse": [
       {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -m tools.timing start",
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "apply_patch|Edit|Write",
         "hooks": [
           {
@@ -53,6 +63,16 @@
       }
     ],
     "PostToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -m tools.timing end",
+            "timeout": 10
+          }
+        ]
+      },
       {
         "matcher": "apply_patch|Edit|Write",
         "hooks": [

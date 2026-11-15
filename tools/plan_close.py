@@ -35,7 +35,9 @@ from tools._lib import (
     words,
     EXTENSION_HEADER,
 )
-from tools.approve import close_base
+from tools._lib import MAX_ROUNDS, posted_important
+from tools.approve import close_base, created_commit
+from tools.milestone_create import section
 
 PLAN_HINT = "add a fix step with python -m tools.step_close add-fix <problem> <step>"
 BOUNDARIES = ("fix added", "plan unblocked", "review passed")
@@ -142,13 +144,38 @@ def tuning():
     problems.save()
 
 
+def plan_rows(problems):
+    return [row for row in problems.rows if row["Step"] == "plan"]
+
+
+def step_problem_rows(problems):
+    """The rows of the steps: their rounds are over, so each one needs its answer and its check."""
+    return [row for row in problems.rows if row["Step"] != "plan"]
+
+
+def plan_rounds(problems):
+    return problems.count_since("plan reviewed", BOUNDARIES)
+
+
+def plan_problem_errors(problems):
+    errors = problem_errors(plan_rows(problems), PLAN_HINT, plan_rounds(problems))
+    return errors + problem_errors(step_problem_rows(problems), PLAN_HINT, MAX_ROUNDS)
+
+
+def open_plan_important(problems):
+    held = plan_rounds(problems)
+    return open_important(plan_rows(problems), held) + open_important(step_problem_rows(problems), MAX_ROUNDS)
+
+
 def reviewed():
     plan, milestone, problems = context()
     if open_steps(plan, milestone):
         fail("steps are not complete: " + " ".join(open_steps(plan, milestone)))
     count = problems.count_since("plan reviewed", BOUNDARIES)
-    if count >= 2:
-        fail(f"the round cap is 2: record the pass, or {PLAN_HINT}")
+    if count >= MAX_ROUNDS:
+        fail(f"the round cap is {MAX_ROUNDS}: record the pass, or {PLAN_HINT}")
+    if count and not posted_important(plan_rows(problems), count):
+        fail(f"round {count} posted no Important problem: answer the problems, then record the pass")
     problems.record("plan reviewed")
     problems.save()
     print(f"plan review round {count + 1}")
@@ -164,7 +191,7 @@ def review_passed():
     last = problems.last(BOUNDARIES + ("plan reviewed",))
     if not last or last["type"] not in ("plan reviewed", "plan unblocked"):
         errors.append("the plan has no review of the current state, run review-plan")
-    errors += problem_errors(problems.rows, PLAN_HINT)
+    errors += plan_problem_errors(problems)
     dirty = [name for name in dirty_files() if name != problems.rel]
     if dirty:
         errors.append("commit these changes before the review pass: " + " ".join(dirty))
@@ -198,18 +225,28 @@ def extension_errors(plan):
     return errors
 
 
+def product_changed(plan):
+    """Whether the plan changed a source or test file of a language of the project since its creation."""
+    project = load_project()
+    roots = [root.rstrip("/") + "/" for entry in project.get("language", []) for root in entry["source"] + entry["tests"]]
+    names = git("diff", "--name-only", created_commit(plan), "HEAD").splitlines()
+    return any(name.startswith(tuple(roots)) for name in names)
+
+
 def gate(plan, milestone, problems):
-    review = review_commit(plan)
-    record = problems.last(("review passed",))
-    parent = git("rev-parse", f"{review}~1")
-    names = git("diff", "--name-only", f"{review}~1", review).splitlines()
-    if not record or not parent.startswith(record["ids"][0]) or names != [problems.rel]:
-        fail("changed after review, run review-plan again")
+    review = None
+    if product_changed(plan):
+        review = review_commit(plan)
+        record = problems.last(("review passed",))
+        parent = git("rev-parse", f"{review}~1")
+        names = git("diff", "--name-only", f"{review}~1", review).splitlines()
+        if not record or not parent.startswith(record["ids"][0]) or names != [problems.rel]:
+            fail("changed after review, run review-plan again")
     errors = []
     if not clean_tree():
         errors.append("the work tree is not clean. Discard the changes of an interrupted close, then run again")
     errors += [f"step {step_id} is not complete" for step_id in open_steps(plan, milestone)]
-    errors += problem_errors(problems.rows, PLAN_HINT)
+    errors += plan_problem_errors(problems)
     if not problems.last(("tuning done",)):
         errors.append("problems.md is not processed, run python -m tools.plan_close tuning")
     errors += extension_errors(plan)
@@ -221,10 +258,31 @@ def gate(plan, milestone, problems):
     code, output = tool("check")
     if code != 0:
         fail(f"plan gate:\npython -m tools.check fails:\n{output}")
-    code, output = test.execute("SUITE")
-    if code != 0:
-        fail(f"plan gate:\nthe test suite fails:\n{output}")
+    # the related tests: the checks of the Verification section and each test file the plan changed or added
+    failures = []
+    for check in plan_checks(plan):
+        kind, name = check
+        if kind == "MANUAL":
+            continue
+        code, output = test.execute(kind, name)
+        if code != 0:
+            failures.append(f"the check '{kind} {name}' fails:\n{output}")
+    checked = {name for kind, name in plan_checks(plan) if kind == "TEST"}
+    for test_name in test.changed_tests(created_commit(plan)):
+        if test_name in checked:
+            continue
+        code, output = test.execute("TEST", test_name)
+        if code != 0:
+            failures.append(f"the changed test {test_name} fails:\n{output}")
+    if failures:
+        fail("plan gate:\n" + "\n".join(failures))
     return review
+
+
+def plan_checks(plan):
+    """The checks of the Verification section of a plan as (kind, name)."""
+    lines = (section(plan["text"], "Verification") or "").split("\n")
+    return [check for line in lines if line.startswith("- ") and (check := parse_check(line[2:]))]
 
 
 def fix_bug(plan, milestone, bug_id):
@@ -292,6 +350,7 @@ def close():
             done.append(item)
     save_plan(plan)
     tmp = plan["dir"] / "tmp"
+    stop_package(tmp)
     shutil.rmtree(tmp, ignore_errors=True)
     if tmp.exists():
         fail(f"{rel(tmp)} is in use: close the manual check package, then run the close again")
@@ -313,7 +372,7 @@ def close():
 
 def block():
     plan, milestone, problems = context()
-    ids = open_important(problems.rows)
+    ids = open_plan_important(problems)
     if not ids:
         fail("no Important problem is open")
     plan["meta"]["status"] = "blocked"
@@ -347,7 +406,7 @@ def unblock(args):
         problems = Problems(plan)
     elif choice == "replan" and plan["field"] == "bugs":
         problems.record("bug verified withdrawn", item)
-    ids = open_important(problems.rows)
+    ids = open_plan_important(problems)
     for row in problems.rows:
         if row["ID"] in ids:
             row["Answer"] = f"user {choice} {reason}"

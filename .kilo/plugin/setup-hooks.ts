@@ -3,6 +3,18 @@ import { spawnSync } from "node:child_process"
 const hooks = [
   {
     "event": "tool.execute.before",
+    "matcher": ".*",
+    "command": "python -m tools.timing start",
+    "timeout": 10
+  },
+  {
+    "event": "tool.execute.after",
+    "matcher": ".*",
+    "command": "python -m tools.timing end",
+    "timeout": 10
+  },
+  {
+    "event": "tool.execute.before",
     "matcher": "edit|write|multiedit|apply_patch",
     "command": "python -m tools.pre_write",
     "timeout": 30

@@ -26,6 +26,7 @@ from tools._lib import (
     plans,
     read,
     rel,
+    stop_package,
     require_branch,
     run as shell,
     save_milestone,
@@ -144,6 +145,7 @@ def release(milestone):
 
 
 def clear_tmp():
+    stop_package(TMP)
     shutil.rmtree(TMP, ignore_errors=True)
     if TMP.exists():
         fail(f"{rel(TMP)} is in use: close the manual check package, then run the close again")

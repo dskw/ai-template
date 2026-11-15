@@ -16,6 +16,7 @@ Run `python -m tools.progress status` at session start when no hook injected its
 ## Skills
 - `project-init`: binds the setup to the project. Use it once, before the first milestone.
 - `project-update`: changes a project binding. Use it for a new language, tool, pipeline or MCP server.
+- `milestone-propose`: proposes the next milestone. Use it when the user asks for suggestions.
 - `milestone-create`: writes a milestone. Use it when no milestone is open.
 - `plan-create`: writes a plan for open features or for bugs. Use it when no plan is active.
 - `step-run`: implements the step that the status prints.
@@ -25,6 +26,8 @@ Run `python -m tools.progress status` at session start when no hook injected its
 - `bug-report`: adds a bug to the open milestone.
 - `bug-fix`: verifies the fixed bugs of a fix plan. `plan-close` calls it.
 - `milestone-close`: closes the open milestone, or closes it early on user request.
+- `idea-add`: records an idea for a later milestone.
+- `idea-remove`: removes planned or dropped ideas. `milestone-create` calls it.
 - `memory-save`: creates or updates a memory.
 - `memory-consolidate`: reviews, merges and deletes memories. `plan-close` calls it.
 
@@ -35,6 +38,7 @@ Run `python -m tools.progress status` at session start when no hook injected its
 - Never save progress, status, architecture, file paths, bug fixes, a rule of the conventions or a fact that the code shows.
 - A memory is a hint to verify, not a fact. When the code contradicts it, correct or delete it in the same turn.
 - Write memory files through `memory-save` only. Never edit `docs/MEMORY.md` by hand.
+- Never save an idea for a feature as a memory. Use `idea-add`.
 
 ## Language
 Every text follows the writing rules of `docs/DOCS_CONVENTIONS.md`.

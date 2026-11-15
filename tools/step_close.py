@@ -16,7 +16,9 @@ from tools._lib import (
     has_commit,
     main,
     next_id,
+    MAX_ROUNDS,
     open_important,
+    posted_important,
     open_milestone,
     parse_check,
     problem_errors,
@@ -75,11 +77,23 @@ def review(step_id):
     if row["State"] != "in progress":
         fail(f"step {step_id} has state {row['State']}")
     count = rounds(problems, step_id)
-    if count >= 2:
-        fail(f"the round cap is 2: answer the problems, then close the step, or {STEP_HINT}")
+    if count >= MAX_ROUNDS:
+        fail(f"the round cap is {MAX_ROUNDS}: answer the problems, then close the step, or {STEP_HINT}")
+    if count and not posted_important(step_rows(problems, step_id), count):
+        fail(f"round {count} posted no Important problem: answer the problems, then close the step")
     problems.record("step reviewed", step_id)
     problems.save()
     print(f"review round {count + 1} of step {step_id}")
+
+
+def outside_step(path, plan_rel):
+    """Whether a path lies outside the step: the memory, the setup findings, the milestones and the other plans."""
+    if path.startswith("docs/memories/") or path in ("docs/MEMORY.md", "docs/ai-setup-adjustments.md"):
+        return True
+    if path.startswith("docs/milestones/"):
+        return True
+    plan_rel = plan_rel.replace("\\", "/").rstrip("/") + "/"
+    return path.startswith("docs/plans/") and not path.startswith(plan_rel)
 
 
 def revert(step_id):
@@ -93,12 +107,26 @@ def revert(step_id):
     base = step_base(problems, step_id)
     lines = git("log", "--format=%H%x09%s", f"{base}..HEAD").splitlines()
     commits = [line.split("\t")[0] for line in lines if not re.match(r"^\S+\t(Bug reported|Bug dropped|Milestone updated): ", line)]
+    # a commit of memories, setup findings, milestones or other plans stays, also inside a mixed commit
+    kept, mixed = [], []
+    for commit_hash in commits:
+        files = git("show", "--name-only", "--format=", commit_hash).splitlines()
+        outside = [path for path in files if outside_step(path, plan["rel"])]
+        if files and len(outside) == len(files):
+            kept.append(commit_hash)
+        elif outside:
+            mixed.append((commit_hash, outside))
+    commits = [commit_hash for commit_hash in commits if commit_hash not in kept]
     if commits:
         code, output = shell(["git", "revert", "--no-commit", *commits])
         if code != 0:
             shell(["git", "revert", "--abort"])
             fail(f"git revert failed, revert the commits of the step by hand:\n{output}")
+        for commit_hash, outside in reversed(mixed):
+            git("checkout", commit_hash, "--", *outside)
         git("checkout", "HEAD", "--", plan["rel"])
+    for commit_hash in kept:
+        print(f"kept {git('log', '--format=%h %s', '-1', commit_hash)}")
     for item in problems.rows:
         if item["Step"] == step_id and not settled(item):
             item["Answer"] = "reverted"
@@ -134,7 +162,7 @@ def close(step_id, answer, by=None):
     count = rounds(problems, step_id)
     if count == 0:
         errors.append("the step has no review, run review-step")
-    errors += problem_errors(step_rows(problems, step_id), STEP_HINT)
+    errors += problem_errors(step_rows(problems, step_id), STEP_HINT, count)
     errors += approval_errors(plan, problems, step_id, step_base(problems, step_id))
     if errors:
         fail("step gate:\n" + "\n".join(errors))
@@ -155,9 +183,13 @@ def close(step_id, answer, by=None):
     code, output = tool("check")
     if code != 0:
         errors.append(f"python -m tools.check fails:\n{output}")
-    code, output = test.execute("SUITE")
-    if code != 0:
-        errors.append(f"the test suite fails:\n{output}")
+    # the related tests: each test file that the step changed or added; the whole suite runs at the milestone close
+    for test_name in test.changed_tests(step_base(problems, step_id)):
+        if (kind, name) == ("TEST", test_name):
+            continue
+        code, output = test.execute("TEST", test_name, plan, step_id)
+        if code != 0:
+            errors.append(f"the changed test {test_name} fails:\n{output}")
     if errors:
         fail("step gate:\n" + "\n".join(errors))
     row["State"], row["Evidence"], row["Round"] = "complete", f"evidence/{step_id}-test.txt", str(count)
@@ -176,15 +208,18 @@ def block(step_id):
     row["State"], row["Round"] = "blocked", str(rounds(problems, step_id))
     plan["meta"]["status"] = "blocked"
     save_plan(plan)
-    problems.record("step blocked", step_id, *open_important(step_rows(problems, step_id)))
+    problems.record("step blocked", step_id, *open_important(step_rows(problems, step_id), rounds(problems, step_id)))
     problems.save()
     print(f"step {step_id} is blocked, ask the user")
 
 
 def unblock(step_id, answer):
+    """Takes the decision of the user on the open Important problems of a blocked step, or of a step in progress
+    after its last review round, so the step goes on without a revert."""
     plan, milestone, problems, row = context(step_id)
-    if row["State"] != "blocked":
-        fail(f"step {step_id} has state {row['State']}")
+    accepted = row["State"] == "in progress" and open_important(step_rows(problems, step_id), rounds(problems, step_id))
+    if row["State"] != "blocked" and not accepted:
+        fail(f"step {step_id} has state {row['State']} and no open Important problem")
     if not answer.strip() or "|" in answer or "\n" in answer:
         fail("the user answer must be one line without '|'")
     for item in step_rows(problems, step_id):

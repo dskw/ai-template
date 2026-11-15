@@ -24,6 +24,15 @@ def step_base(problems, step_id):
     return record["ids"][1]
 
 
+def created_commit(plan):
+    """The commit that created the plan."""
+    created = f"Plan created: {plan['id']}"
+    for commit_hash, subject in subjects():
+        if subject == created:
+            return commit_hash
+    fail(f"the commit '{created}' is missing")
+
+
 def close_base(plan):
     step = re.compile(rf"^Step closed: {plan['id']} S\d\d$")
     created = f"Plan created: {plan['id']}"

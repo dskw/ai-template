@@ -51,6 +51,27 @@ def execute(kind, name="", plan=None, step_id=None):
     return code, output
 
 
+def changed_tests(base):
+    """The names of the test files that changed or came since the commit `base`, committed or not. A test file lies
+    in a test folder of a language of the project, in a folder named `tests`, and is no shared module."""
+    project = load_project()
+    changed = set(git("diff", "--name-only", base).splitlines())
+    changed |= set(git("ls-files", "--others", "--exclude-standard").splitlines())
+    names = []
+    for path in sorted(changed):
+        parts = path.split("/")
+        stem, dot, extension = parts[-1].rpartition(".")
+        if "tests" not in parts[:-1] or not dot or stem in ("mod", "common", "lib", "main"):
+            continue
+        for language in project.get("language", []):
+            folders = language.get("tests", [])
+            extensions = language.get("extensions", [])
+            if f".{extension}" in extensions and any(path.startswith(folder.rstrip("/") + "/") for folder in folders):
+                names.append(stem)
+                break
+    return names
+
+
 def run(args):
     step_id = take_option(args, "--step")
     named_command = "--command" in args

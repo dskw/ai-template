@@ -9,13 +9,13 @@ The rules are in `docs/DOCS_CONVENTIONS.md`, section Plan close. The problem for
 ## Procedure
 1. Run `python -m tools.plan_close reviewed`. It prints the review round.
 2. Start the `reviewer` agent in a fresh context with the scope plan review.
-3. Give it the plan folder, the notes of the implementor and the round. In round 2, add the problem rows of round 1 with their answers.
-4. Write one row per posted problem into the `Problems` table with `plan` in the `Step` column.
-5. In round 2, write the result of the reviewer into the `Check` cell of each round 1 problem.
+3. Give it the plan folder, the notes of the implementor and the round. In a later round, add the problem rows of the round before with their answers.
+4. Write one row per posted problem into the `Problems` table with `plan` in the `Step` column. Run `python -m tools.check` with the path of the problems file and fix each sentence that it names.
+5. In a later round, write the result of the reviewer into the `Check` cell of each problem of the round before.
 6. For each `Pre-existing` problem, run `bug-report` with the plan id and the problem id as source. Write `bug <id>` as its answer.
 7. The implementor answers each problem and commits each fix.
-8. When round 1 posted a problem, start again at step 1 for round 2.
-9. When an `Important` problem is open after round 2, follow the section Fix step.
+8. When the round posted an `Important` problem, start again at step 1 for the next round, up to round 3.
+9. When an `Important` problem is open after round 3, follow the section Fix step.
 10. Commit all changes except `problems.md`. Run `python -m tools.plan_close review-passed`.
 
 ## Fix step

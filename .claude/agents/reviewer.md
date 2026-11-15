@@ -13,7 +13,7 @@ The caller gives you:
 - The plan folder and, for a step review, the step id and the start commit of the step.
 - The evidence file of the step.
 - The notes of the implementor, max 10 lines.
-- The review round. In round 2, the problem rows of round 1 with their answers.
+- The review round. In a later round, the problem rows of the round before with their answers.
 - For a document review, the path of the document.
 
 ## Procedure
@@ -25,9 +25,9 @@ The caller gives you:
 6. Read the conventions file of each rule that a candidate maps to.
 7. Read the code around the change. Search the repository for existing code that the change can reuse.
 8. Run `python -m tools.test <name>` when a test can show a failure.
-9. In round 2, check each problem of round 1 against the new diff and its answer.
+9. In a later round, check each problem of the round before against the new diff and its answer.
 
 ## Output
 1. The first line is the count: `<count> problems`.
 2. Each problem follows in the problem format of `docs/REVIEW.md`, without an id.
-3. In round 2, add one line per problem of round 1: the problem id, then `confirmed` or `re-raised <trigger>`.
+3. In a later round, add one line per problem of the round before: the problem id, then `confirmed` or `re-raised <trigger>`.

@@ -6,6 +6,20 @@
   timeout: 30
 - event: pre_tool_use
   matcher:
+    claude: .*
+    codex: .*
+    kilo: .*
+  command: python -m tools.timing start
+  timeout: 10
+- event: post_tool_use
+  matcher:
+    claude: .*
+    codex: .*
+    kilo: .*
+  command: python -m tools.timing end
+  timeout: 10
+- event: pre_tool_use
+  matcher:
     claude: Edit|Write
     codex: apply_patch|Edit|Write
     kilo: edit|write|multiedit|apply_patch

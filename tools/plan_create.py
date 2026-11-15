@@ -9,6 +9,8 @@ from tools._lib import (
     active_plan,
     commit,
     fail,
+    read,
+    today,
     main,
     open_milestone,
     parse_check,
@@ -117,6 +119,16 @@ def validate(plan, milestone):
             errors.append(f"{name}: {step['Step']}: the verification must be 'TEST <name> passes', 'COMMAND <name> passes' or 'MANUAL <name>'")
         elif plan["field"] == "bugs" and step["Verification"] != acceptance.get(step["Feature"]):
             errors.append(f"{name}: {step['Step']}: the verification must be the acceptance of {step['Feature']}")
+    if plan["field"] == "features":
+        # the steps of one feature extend the one test of that feature
+        for item in plan["ids"]:
+            tests = {
+                check[1]
+                for step in plan["steps"]
+                if step["Feature"] == item and (check := parse_check(step["Verification"])) and check[0] == "TEST"
+            }
+            if len(tests) > 1:
+                errors.append(f"{name}: {item} has the tests {', '.join(sorted(tests))}; its steps share one test")
     for item in plan["ids"]:
         count = sum(step["Feature"] == item for step in plan["steps"])
         if count == 0 or (plan["field"] == "bugs" and count != 1):
@@ -125,6 +137,16 @@ def validate(plan, milestone):
     if not checks or not all(parse_check(check) for check in checks):
         errors.append(f"{name}: the Verification section must list one check per line")
     return errors
+
+
+def reviewed():
+    """Records a document review round of the draft, so the review yield counts it."""
+    found = drafts()
+    if len(found) != 1:
+        fail("one draft plan is expected")
+    path = found[0] / "problems.md"
+    write(path, read(path).rstrip("\n") + f"\n- document reviewed {today()}\n")
+    print("document review recorded")
 
 
 def create():
@@ -151,6 +173,8 @@ def create():
 def run(args):
     if args[:1] == ["start"] and len(args) == 3:
         start(args[1], args[2])
+    elif args == ["reviewed"]:
+        reviewed()
     elif args == ["commit"]:
         create()
     else:

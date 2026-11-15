@@ -13,10 +13,10 @@ The problem format is in `docs/REVIEW.md`. The file format is in `docs/DOCS_CONV
 4. Give it the plan folder, the step id, the start commit, the evidence file, the notes of the implementor and the round.
 5. Name the design sections that the step touches, not whole documents. Name the test command and its duration.
 6. Name the folder `dependency_source` of `tools/project.toml` when the binding exists.
-7. In round 2, give it the new diff only and the problem rows of round 1 with their answers.
+7. In a later round, give it the new diff only and the problem rows of the round before with their answers.
 8. Write one row per posted problem into the `Problems` table. Use the next free problem id.
-9. Fill `Step`, `Round`, `Severity`, `Rule`, `Location`, `Trigger`, `Class` and `Fix`. Leave `Answer` and `Check` empty.
-10. In round 2, write the result of the reviewer into the `Check` cell of each round 1 problem.
+9. Fill `Step`, `Round`, `Severity`, `Rule`, `Location`, `Trigger`, `Class` and `Fix`. Leave `Answer` and `Check` empty. Run `python -m tools.check` with the path of the problems file and fix each sentence that it names.
+10. In a later round, write the result of the reviewer into the `Check` cell of each problem of the round before.
 11. For each `Pre-existing` problem, run `bug-report` with the plan id and the problem id as source. Write `bug <id>` as its answer.
 12. Report the count of problems to the caller.
 

@@ -61,15 +61,23 @@ def touches(files, patterns):
     return files is None or any(any_match(name, patterns) for name in files)
 
 
+def staged_files():
+    code, output = shell(["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"])
+    return [name for name in output.split() if (ROOT / name).is_file()] if code == 0 else []
+
+
 def run(args):
     format_only = "--format-only" in args
-    args = [name for name in args if name != "--format-only"]
+    # the commit hook lints the staged documents only, so a commit prints no warning of an unchanged document
+    staged = "--staged" in args
+    args = [name for name in args if name not in ("--format-only", "--staged")]
     files = None
     if args:
         files = [os.path.relpath(os.path.abspath(name), ROOT).replace("\\", "/") for name in args]
         files = [name for name in files if (ROOT / name).is_file()]
+    documents = [name for name in staged_files() if name.endswith(".md")] if staged and files is None else files
     checks = [("lint and format", lambda: (language_errors(files, format_only), [])), ("encoding", lambda: (check_encoding.errors(files), []))]
-    checks.append(("docs lint", lambda: docs_lint.lint(files)))
+    checks.append(("docs lint", lambda: docs_lint.lint(documents or None) if documents or not staged else ([], [])))
     if touches(files, ["docs/MEMORY.md", "docs/memories/**"]):
         checks.append(("memory lint", memory_lint.lint))
     if touches(files, [".agents/**", "AGENTS.md"]):

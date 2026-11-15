@@ -17,8 +17,9 @@ The format and the rules of a milestone file are in `docs/DOCS_CONVENTIONS.md`, 
 8. Ask the user for each acceptance that `docs/design/` does not give. A feature without acceptance does not pass.
 9. Write a bug row for each open bug that this milestone takes over. Give each row a new id.
 10. Start the `reviewer` agent with the effort `medium`, the scope document review and the path of the draft file.
-11. Fix each problem in the draft file. When the first review posted a problem, run a second review of the answers and the changed lines only.
+11. Fix each problem in the draft file. When the review posted an `Important` problem, run a second review of the answers and the changed lines only, up to three reviews.
 12. Run `python -m tools.milestone_create commit`. Fix each item that it names and run it again.
+13. Run `idea-remove` for each idea of the ideas file that the milestone plans, with the milestone id as reason.
 
 ## Scope change of an open milestone
 After the creation commit, change the goal with `python -m tools.progress set-goal "<text>"`. Change the out of scope list with `python -m tools.progress out-of-scope add "<item>"` or `out-of-scope remove "<item>"`. Run them only on a user decision.
