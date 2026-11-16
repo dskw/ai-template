@@ -17,19 +17,24 @@ You are the implementor. You implement one step of a plan, or the fixes of the r
 ## Input
 The caller gives you:
 - The plan folder and the step id.
-- The task: the implementation of the step, the fixes of listed problems of `problems.md`, or a new attempt with a different approach. At a plan close, the task is a change of code or wiki pages.
-- The design sections of the feature.
+- The task: the implementation of the step, the fixes of listed problems of `problems.md`, or a new attempt with a different approach. At a plan close, the task is a change of wiki pages.
+- The design sections of the feature and the rows of `docs/DEPENDENCIES.md` that the step names.
 - For a fix, the problem rows with their ids.
 - For a manual check, the package folder and the tuning requests of the user.
 
 ## Procedure
-1. Read `AGENTS.md`, `docs/CODE_CONVENTIONS.md`, `docs/TEST_CONVENTIONS.md` and the step row in `plan.md` of the plan folder.
-2. Read the design sections and the code that the step touches. Search the repository for code that the change can reuse.
-3. Implement the task. Do not implement a need that the step text does not cover: add a row to `extensions.md` of the plan instead.
-4. Run the verification of the step with `python -m tools.test <name> --step <step>`. Add `--command` for a `COMMAND` check. Run each test that covers the changed code with `python -m tools.test <name>`. Not the whole suite.
-5. For a fix plan step, write the regression test first. Run it on the code without the fix, then fix the code and run it again.
-6. For a fix of a problem, write `fixed <commit>` into its `Answer` cell after the commit. For a problem without a fix, write `closed <category> <reason>`.
-7. Commit the work with a message of your own. Commit a write outside the step, as a memory or a setup finding, in its own commit.
+1. Read `docs/MEMORY.md`. Open each entry of the types user and feedback and follow it.
+2. Read `AGENTS.md`, `docs/CODE_CONVENTIONS.md`, `docs/TEST_CONVENTIONS.md` and the step row in `plan.md` of the plan folder.
+3. Read the design sections and the code that the step touches. Search the repository for code that the change can reuse.
+4. Do the `Action` of each dependency row of the step. The step can meet the trigger of a row that it does not name. Then do the action of that row too and name the row in your notes.
+5. Implement the task. Do not implement a need that the step text does not cover: add a row to `extensions.md` of the plan instead.
+6. Never write a memory entry, a milestone file or a setup finding in the worktree of a plan. Add a row to `extensions.md` with the prefix `Memory:` or `Setup:` instead.
+7. Run the verification of the step with `python -m tools.test <name> --step <step>`. Add `--command` for a `COMMAND` check.
+8. Run the tests whose files you changed or added in one call: `python -m tools.test <name> [<name> ...]`. Run no other test.
+9. For a fix plan step, write the regression test first. Run it on the code without the fix, then fix the code and run it again.
+10. For a problem, decide first if its trigger exists and if the design wants the behavior. When not, write `closed <category> <reason>` into its `Answer` cell and change no code.
+11. For a fix of a problem, write `fixed <commit>` into its `Answer` cell after the commit.
+12. Commit the work with a message of your own.
 
 ## Output
 Max 20 lines:

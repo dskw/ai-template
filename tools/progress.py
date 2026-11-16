@@ -9,11 +9,17 @@ from tools._lib import (
     MILESTONE_HEADER,
     MILESTONES,
     Fail,
+    FEATURE_TYPES,
     Problems,
     active_plan,
+    active_plans,
     all_steps,
     branch,
     commit,
+    in_worktree,
+    merged,
+    require_main,
+    worktree_path,
     expected_branch,
     fail,
     find_milestone,
@@ -75,6 +81,9 @@ def progress_text(all_milestones):
 
 
 def regenerate():
+    # the tables of the milestone belong to the main repository; a worktree of a plan never writes them
+    if in_worktree():
+        return
     all_milestones = milestones()
     all_plans = plans()
     for milestone in all_milestones:
@@ -195,23 +204,12 @@ def status():
     if branch() != expected_branch():
         print(f"wrong branch {branch() or 'detached HEAD'}, check out {expected_branch()}")
         return
-    plan = active_plan()
     milestone = open_milestone()
+    if not in_worktree():
+        return main_status(milestone)
+    plan = active_plan()
     if not plan:
-        print("no active plan")
-        if not milestone:
-            print("no open milestone")
-            return
-        features = [row["ID"] for row in milestone["features"] if row["State"] in ("open", "in progress")]
-        bugs = [row["ID"] for row in milestone["bugs"]]
-        if features:
-            print(f"milestone {milestone['id']}: open features {' '.join(features)}")
-            if bugs:
-                print(f"milestone {milestone['id']}: open bugs {' '.join(bugs)}")
-        elif bugs:
-            print(f"bugfix phase: {' '.join(bugs)}")
-        else:
-            print(f"milestone {milestone['id']}: no open feature and no bug, run milestone-close")
+        print(f"the branch {branch()} has no active plan, work in the main repository")
         return
     print(f"plan {plan['id']}: {plan['meta']['status']}")
     problems = Problems(plan)
@@ -232,6 +230,35 @@ def status():
     print(f"undecided extensions: {len(undecided(plan))}")
 
 
+def main_status(milestone):
+    """The status of the main repository: each active plan with its worktree, and the features and bugs that no
+    active plan holds."""
+    found = active_plans()
+    for plan in found:
+        if merged(plan["id"]):
+            print(f"plan {plan['id']}: in close, run plan-close")
+        else:
+            print(f"plan {plan['id']}: {plan['meta']['status']} in the worktree {worktree_path(plan['id'])}")
+    if not found:
+        print("no active plan")
+    if not milestone:
+        print("no open milestone")
+        return
+    held = {item for plan in found for item in plan["ids"]}
+    features = [row["ID"] for row in milestone["features"] if row["State"] in ("open", "in progress") and row["ID"] not in held]
+    bugs = [row["ID"] for row in milestone["bugs"] if row["ID"] not in held]
+    if features:
+        print(f"milestone {milestone['id']}: open features {' '.join(features)}")
+        if bugs:
+            print(f"milestone {milestone['id']}: open bugs {' '.join(bugs)}")
+    elif bugs and not any(row["State"] in ("open", "in progress") for row in milestone["features"]):
+        print(f"bugfix phase: {' '.join(bugs)}")
+    elif bugs:
+        print(f"milestone {milestone['id']}: open bugs {' '.join(bugs)}")
+    elif not found:
+        print(f"milestone {milestone['id']}: no open feature and no bug, run milestone-close")
+
+
 def check_text(text, limit, name):
     if not 1 <= words(text) <= limit:
         fail(f"{name} must have 1 to {limit} words")
@@ -240,11 +267,12 @@ def check_text(text, limit, name):
 
 
 def add_feature(milestone_id, kind, text, acceptance):
+    require_main()
     milestone = find_milestone(milestone_id)
     if milestone["meta"]["status"] == "closed":
         fail(f"milestone {milestone_id} is closed")
-    if kind not in ("new", "update"):
-        fail("the type must be new or update")
+    if kind not in FEATURE_TYPES:
+        fail("the type must be new, update or refactor")
     check_text(text, 12, "the feature text")
     if not parse_check(acceptance):
         fail("the acceptance must be 'TEST <name> passes', 'COMMAND <name> passes' or 'MANUAL <name>'")
@@ -254,10 +282,12 @@ def add_feature(milestone_id, kind, text, acceptance):
     )
     save_milestone(milestone)
     regenerate()
+    commit(f"Feature added: {milestone_id} {feature_id}", [milestone["path"], PROGRESS], verify=False)
     print(f"added {milestone_id} {feature_id}")
 
 
 def require_milestone():
+    require_main()
     milestone = open_milestone()
     if not milestone:
         fail("no open milestone, run milestone-create")
@@ -318,6 +348,7 @@ def drop_feature(feature_id, reason):
             row["State"], row["Acceptance"] = "dropped", reason
             save_milestone(milestone)
             regenerate()
+            commit(f"Feature dropped: {milestone['id']} {feature_id} {reason}", [milestone["path"], PROGRESS], verify=False)
             print(f"dropped {milestone['id']} {feature_id}")
             return
     fail(f"{feature_id} is not in the feature table of {milestone['id']}")
@@ -384,8 +415,9 @@ def drop_bug(bug_id, reason):
     check_text(reason, 12, "the reason")
     remove_bug(milestone, bug_id)
     paths = [milestone["path"], PROGRESS]
+    # the plan in close holds its folder in this work tree; a plan in a worktree records the drop at its next sync
     plan = active_plan()
-    if plan and bug_id in plan["ids"] and bug_id not in plan["meta"]["done"]:
+    if plan and bug_id in plan["ids"] and bug_id not in plan["meta"]["done"] and bug_id not in withdrawn(plan):
         problems = Problems(plan)
         problems.record("bug verified withdrawn", bug_id)
         problems.save()
@@ -430,7 +462,7 @@ def run(args):
     else:
         fail(
             "usage: python -m tools.progress [check | status"
-            ' | add-feature <milestone> <new|update> "<text>" "<acceptance>"'
+            ' | add-feature <milestone> <new|update|refactor> "<text>" "<acceptance>"'
             ' | drop-feature <feature> "<reason>"'
             ' | set-goal "<text>" | out-of-scope <add|remove> "<item>"'
             ' | add-bug "<text>" "<feature or empty>" "<source>" "<acceptance>"'

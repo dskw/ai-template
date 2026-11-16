@@ -86,6 +86,13 @@ def report():
                 f"{total('Important', 'fixed')} | {total('Nit', 'fixed')} | {total(result='closed')} | "
                 f"{total(result='wrong')} | {total(result='bug')} |"
             )
+    topics = Counter()
+    for plan in plans():
+        if plan["archived"]:
+            topics.update({row["Topic"].lower() for row in Problems(plan).rows if row["Severity"] == "Important" and row["Topic"]})
+    if topics:
+        lines += ["", "| Topic | Plans with an Important problem |", "|---|---|"]
+        lines += [f"| {topic} | {count} |" for topic, count in sorted(topics.items(), key=lambda item: (-item[1], item[0]))]
     bugs = fixed_bugs()
     lines.append("")
     lines.append("Bugs fixed per version, found after the reviews: " + ", ".join(f"{v} {n}" for v, n in sorted(bugs.items())))

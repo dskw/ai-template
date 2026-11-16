@@ -2,28 +2,23 @@ import os
 import sys
 import tempfile
 
-from tools._lib import ROOT, Fail, any_match, hook_paths, main, outside, read, read_meta
+from tools._lib import (
+    DRAFT_ONLY,
+    GENERATED,
+    ROOT,
+    SHARED,
+    TOOL_OWNED,
+    Fail,
+    any_match,
+    hook_paths,
+    in_worktree,
+    main,
+    main_root,
+    outside,
+    read,
+    read_meta,
+)
 
-GENERATED = [
-    ".claude/**",
-    ".codex/**",
-    ".kilo/**",
-    ".agents/.generated/**",
-    "CLAUDE.md",
-    ".mcp.json",
-    "kilo.jsonc",
-    "docs/MEMORY.md",
-    "docs/wiki/assets/pages.js",
-    "docs/wiki/index.html",
-]
-TOOL_OWNED = [
-    "docs/milestones/PROGRESS.md",
-    "docs/milestones/archive/**",
-    "docs/plans/archive/**",
-    "docs/plans/*/progress.md",
-    "docs/plans/*/evidence/**",
-]
-DRAFT_ONLY = ["docs/milestones/M*.md", "docs/plans/*/plan.md"]
 GENERATED_MESSAGE = "Generated file. Edit the source and run the generator."
 OUTSIDE_MESSAGE = "Outside the repository. An agent writes only inside the repository and the temporary folder."
 TOOL_MESSAGE = "Write protected. Every write to this file goes through a tool, see docs/DOCS_CONVENTIONS.md."
@@ -40,6 +35,8 @@ def block_reason(name, kind):
         return None if outside_allowed(name) else OUTSIDE_MESSAGE
     if any_match(name, GENERATED):
         return GENERATED_MESSAGE
+    if any_match(name, SHARED) and in_worktree():
+        return f"Shared file of the milestone. Write it in the main repository: {main_root()}"
     if any_match(name, TOOL_OWNED):
         return TOOL_MESSAGE
     if any_match(name, DRAFT_ONLY):

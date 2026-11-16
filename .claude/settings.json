@@ -3,6 +3,11 @@
   "env": {
     "PYTHONUTF8": "1"
   },
+  "permissions": {
+    "ask": [
+      "Bash(* --answer *)"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {

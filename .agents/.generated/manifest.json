@@ -1,11 +1,13 @@
 {
-  "source_hash": "dbf8e45d70ad247d1f9f7c7405af3739e6406380c7f2510e5c123449a9c36beb",
+  "source_hash": "6a1086cbffb1d8be6cbd187cfe6c1e4c48fe1f9ff7bb6d8a14442a2d3c4ecd34",
   "files": [
     ".claude/agents/implementor.md",
     ".claude/agents/reviewer.md",
     ".claude/settings.json",
     ".claude/skills/bug-fix/SKILL.md",
     ".claude/skills/bug-report/SKILL.md",
+    ".claude/skills/dependency-add/SKILL.md",
+    ".claude/skills/dependency-remove/SKILL.md",
     ".claude/skills/idea-add/SKILL.md",
     ".claude/skills/idea-remove/SKILL.md",
     ".claude/skills/memory-consolidate/SKILL.md",

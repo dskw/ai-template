@@ -5,45 +5,79 @@ import shutil
 
 from tools import memory_lint, progress, test
 from tools._lib import (
+    EXTENSION_HEADER,
+    MAX_ROUNDS,
     PLANS,
+    TOOL_COMMIT,
     Problems,
+    active_plans,
     approval_errors,
     ask,
+    branch,
     clean_tree,
     commit,
     dirty_files,
     fail,
     git,
+    git_dir,
+    git_ok,
+    has_commit,
+    load_plan,
+    load_project,
     main,
+    merging,
+    milestone_branch,
     milestones,
     open_important,
     open_milestone,
     parse_check,
+    plan_branch,
     plans,
+    posted_important,
     problem_errors,
     read,
     read_table,
     rel,
     require_branch,
+    require_main,
     require_plan,
+    require_worktree,
     required_steps,
+    run as shell,
     save_plan,
+    stop_package,
     subjects,
     take_option,
     today,
     tool,
+    tool_git,
     words,
-    EXTENSION_HEADER,
+    worktree_path,
+    write,
 )
-from tools._lib import MAX_ROUNDS, posted_important
 from tools.approve import close_base, created_commit
 from tools.milestone_create import section
 
 PLAN_HINT = "add a fix step with python -m tools.step_close add-fix <problem> <step>"
 BOUNDARIES = ("fix added", "plan unblocked", "review passed")
+FEATURE_EXTENSIONS = ("feature", "refactor")
+
+
+def worktree_context(branch_check=True):
+    """The plan of this worktree with its milestone and problems. The plan review and its records run here."""
+    require_worktree()
+    plan = require_plan()
+    milestone = open_milestone()
+    if not milestone or milestone["id"] != plan["meta"]["milestone"]:
+        fail(f"the milestone of plan {plan['id']} is not open")
+    if branch_check:
+        require_branch()
+    return plan, milestone, Problems(plan)
 
 
 def context():
+    """The plan in close in the main repository, after its merge."""
+    require_main()
     plan = require_plan()
     milestone = open_milestone()
     if not milestone or milestone["id"] != plan["meta"]["milestone"]:
@@ -52,8 +86,14 @@ def context():
     return plan, milestone, Problems(plan)
 
 
-def open_steps(plan, milestone):
-    required = {step["Step"] for step in required_steps(plan, milestone)}
+def dropped_ids(problems):
+    """The ids that the user dropped for this plan in its worktree. The merge writes the drop to the milestone."""
+    return {r["ids"][1] for r in problems.records if r["type"] == "plan unblocked" and r["ids"][:1] == ["drop"] and len(r["ids"]) > 1}
+
+
+def open_steps(plan, milestone, problems=None):
+    dropped = dropped_ids(problems) if problems else set()
+    required = {step["Step"] for step in required_steps(plan, milestone) if step["Feature"] not in dropped}
     return [row["Step"] for row in plan["progress"] if row["Step"] in required and row["State"] != "complete"]
 
 
@@ -119,6 +159,7 @@ def verify_bug(bug_id):
 def tuning():
     plan, milestone, problems = context()
     fixed, closed = collections.Counter(), collections.Counter()
+    topics = collections.defaultdict(set)
     for other in plans():
         if other["meta"]["status"] == "draft":
             continue
@@ -127,13 +168,22 @@ def tuning():
                 fixed[row["Rule"]] += 1
             if re.match(r"closed (wrong|intentional) ", row["Answer"]) and row["Check"] == "confirmed":
                 closed[row["Rule"]] += 1
+            if row["Severity"] == "Important" and row["Topic"]:
+                topics[row["Topic"].lower()].add(other["id"])
     print("rule: fixed, closed as wrong or intentional and confirmed")
     for rule in sorted(set(fixed) | set(closed)):
         print(f"{rule}: {fixed[rule]}, {closed[rule]}")
+    print("topic: plans with an Important problem")
+    for topic in sorted(topics):
+        print(f"{topic}: {len(topics[topic])}")
     for rule in sorted(rule for rule in closed if closed[rule] >= 2):
         print(f"tune {rule}: remove the failure pattern from docs/REVIEW.md, or add the intent to the conventions")
     for rule in sorted(rule for rule in fixed if fixed[rule] >= 3):
         print(f"tune {rule}: add a lint rule or a convention rule")
+    # a topic of this plan that an earlier plan had too: the same failure came back
+    for topic in sorted(topic for topic in topics if plan["id"] in topics[topic] and len(topics[topic]) >= 2):
+        others = " ".join(sorted(topics[topic] - {plan["id"]}))
+        print(f"tune topic {topic}: also in {others}. Add one row to the failure patterns of docs/REVIEW.md, or propose a dependency")
     if plan["field"] == "bugs":
         states = {f"{m['id']}-{row['ID']}": row["State"] for m in milestones() for row in m["features"]}
         for row in milestone["bugs"]:
@@ -167,10 +217,53 @@ def open_plan_important(problems):
     return open_important(plan_rows(problems), held) + open_important(step_problem_rows(problems), MAX_ROUNDS)
 
 
+def sync():
+    """Merges the milestone branch into the plan branch of this worktree, so the plan holds the work of the plans
+    that closed before it. A merge with a conflict stops; the next call commits the resolved merge."""
+    plan, milestone, problems = worktree_context(branch_check=False)
+    target = milestone_branch(milestone)
+    if merging():
+        if git("diff", "--name-only", "--diff-filter=U"):
+            fail("the merge has files with a conflict, resolve them and run git add")
+        withdraw(plan)
+        tool_git("commit", "-m", f"Plan synced with conflicts: {plan['id']}")
+        print(f"Plan synced with conflicts: {plan['id']}. The plan needs a plan review of this state")
+        return
+    require_branch()
+    if not clean_tree():
+        fail("the work tree is not clean, commit the changes first")
+    if git_ok("merge-base", "--is-ancestor", target, "HEAD"):
+        print(f"plan {plan['id']} holds the tip of {target}")
+        return
+    code, output = shell(["git", "merge", "--no-ff", "--no-commit", target])
+    conflicts = git("diff", "--name-only", "--diff-filter=U").splitlines()
+    if conflicts:
+        fail("merge conflict in:\n" + "\n".join(conflicts) + "\nResolve the files and run git add. Then run the same command again")
+    if code != 0:
+        fail(f"git merge failed:\n{output}")
+    withdraw(plan)
+    tool_git("commit", "--no-verify", "-m", f"Plan synced: {plan['id']}")
+    print(f"Plan synced: {plan['id']}")
+
+
+def withdraw(plan):
+    """Records each bug of a fix plan that left the Bugs table of the merged milestone file without a fix."""
+    if plan["field"] != "bugs":
+        return
+    plan, milestone = require_plan(), open_milestone()
+    problems = Problems(plan)
+    known = {row["ID"] for row in milestone["bugs"]} | set(plan["meta"]["done"]) | progress.withdrawn(plan)
+    for item in plan["ids"]:
+        if item not in known:
+            problems.record("bug verified withdrawn", item)
+    problems.save()
+    git("add", "--", rel(problems.path))
+
+
 def reviewed():
-    plan, milestone, problems = context()
-    if open_steps(plan, milestone):
-        fail("steps are not complete: " + " ".join(open_steps(plan, milestone)))
+    plan, milestone, problems = worktree_context()
+    if open_steps(plan, milestone, problems):
+        fail("steps are not complete: " + " ".join(open_steps(plan, milestone, problems)))
     count = problems.count_since("plan reviewed", BOUNDARIES)
     if count >= MAX_ROUNDS:
         fail(f"the round cap is {MAX_ROUNDS}: record the pass, or {PLAN_HINT}")
@@ -182,12 +275,12 @@ def reviewed():
 
 
 def review_passed():
-    plan, milestone, problems = context()
+    plan, milestone, problems = worktree_context()
     subject = f"Review passed: {plan['id']}"
     if subjects()[0][1] == subject and clean_tree():
         print(subject)
         return
-    errors = [f"step {step_id} is not complete" for step_id in open_steps(plan, milestone)]
+    errors = [f"step {step_id} is not complete" for step_id in open_steps(plan, milestone, problems)]
     last = problems.last(BOUNDARIES + ("plan reviewed",))
     if not last or last["type"] not in ("plan reviewed", "plan unblocked"):
         errors.append("the plan has no review of the current state, run review-plan")
@@ -203,13 +296,116 @@ def review_passed():
     print(subject)
 
 
-def review_commit(plan):
-    for commit_hash, subject in subjects():
-        if subject == f"Review passed: {plan['id']}":
-            return commit_hash
-        if not subject.startswith("Bug fixed: "):
+def roots():
+    project = load_project()
+    return tuple(root.rstrip("/") + "/" for entry in project.get("language", []) for root in entry["source"] + entry["tests"])
+
+
+def review_errors(plan, name, problems):
+    """The errors of the review state of a plan branch that changed a source or test file: its newest own commit is
+    the review pass. Only a merge of the milestone branch without a conflict can follow it."""
+    subject = f"Review passed: {plan['id']}"
+    synced = f"Plan synced: {plan['id']}"
+    for line in git("log", "--first-parent", "--format=%H%x09%s", f"HEAD..{name}").splitlines():
+        commit_hash, _, found = line.partition("\t")
+        if found == synced:
+            continue
+        if found != subject:
             break
-    fail("changed after review, run review-plan again")
+        record = problems.last(("review passed",))
+        parent = git("rev-parse", f"{commit_hash}~1")
+        names = git("diff", "--name-only", f"{commit_hash}~1", commit_hash).splitlines()
+        if record and parent.startswith(record["ids"][0]) and names == [problems.rel]:
+            return []
+        break
+    return [f"the plan changed after its review: run review-plan in {worktree_path(plan['id'])}"]
+
+
+def merge(plan_id):
+    """Brings a reviewed plan from its branch to the milestone branch as one commit. The tag keeps its commits."""
+    require_main()
+    milestone = open_milestone()
+    if not milestone:
+        fail("no open milestone")
+    require_branch()
+    subject = f"Plan merged: {plan_id}"
+    if has_commit(subject):
+        print(subject)
+        return
+    plan = next((p for p in active_plans() if p["id"] == plan_id), None)
+    if not plan:
+        fail(f"{plan_id} is no active plan")
+    closing = [p["id"] for p in active_plans() if has_commit(f"Plan merged: {p['id']}")]
+    if closing:
+        fail(f"plan {closing[0]} is in close. Close it first")
+    name, path = plan_branch(plan_id), worktree_path(plan_id)
+    marker = git_dir() / "PLAN_MERGE"
+    if marker.exists():
+        # an interrupted merge left the staged squash behind
+        shell(["git", "reset", "--hard", "HEAD"])
+        marker.unlink()
+    if not clean_tree():
+        fail("the work tree of the main repository is not clean, commit the changes first")
+    errors = []
+    if path.exists() and shell(["git", "status", "--porcelain"], cwd=path)[1].strip():
+        errors.append(f"the worktree {path} is not clean, commit the changes there")
+    if not git_ok("merge-base", "--is-ancestor", "HEAD", name):
+        errors.append(f"the plan branch does not hold the tip of {branch()}: run python -m tools.plan_close sync in {path}")
+    if errors:
+        fail("plan merge:\n" + "\n".join(errors))
+    changed = git("diff", "--name-only", created_commit(plan), name).splitlines()
+    # the squash puts the state of the plan branch into this work tree; the checks run on it before the commit
+    write(marker, plan_id + "\n")
+    code, output = shell(["git", "merge", "--squash", name])
+    if code == 0:
+        plan = load_plan(plan["dir"])
+        problems = Problems(plan)
+        errors += [f"step {step_id} is not complete" for step_id in open_steps(plan, milestone, problems)]
+        errors += plan_problem_errors(problems)
+        if any(item.startswith(roots()) for item in changed):
+            errors += review_errors(plan, name, problems)
+        errors = errors or merged_tree_errors(plan)
+    if code != 0 or errors:
+        shell(["git", "reset", "--hard", "HEAD"])
+        marker.unlink()
+        hint = f"\nFix it in {path}: a failing test goes into the task of the plan review"
+        fail(f"git merge failed:\n{output}" if code != 0 else "plan merge:\n" + "\n".join(errors) + hint)
+    marker.unlink()
+    if not git_ok("rev-parse", "--verify", "--quiet", f"refs/tags/closed/{plan_id}"):
+        git("tag", f"closed/{plan_id}", name)
+    tool_git("commit", "--no-verify", "-m", subject)
+    print(subject)
+    reasons = [match.group(1) for row in problems.rows if (match := re.match(r"user drop (\S.*)$", row["Answer"]))]
+    for item in sorted(dropped_ids(problems)):
+        target = target_row(plan, open_milestone(), item)
+        reason = reasons[0] if reasons else "dropped in the plan review"
+        if plan["field"] == "features" and target and target["State"] in ("open", "in progress"):
+            progress.drop_feature(item, reason)
+        elif plan["field"] == "bugs" and target:
+            progress.drop_bug(item, reason)
+
+
+def merged_tree_errors(plan):
+    """The failures of the checks on the merged tree: the full check, then in one call of the runner the checks of
+    the Verification section and each test file that the plan changed or added."""
+    # the staged squash is the work of a tool, so the commit order check accepts its source files
+    code, output = tool("check", env={TOOL_COMMIT: "1"})
+    if code != 0:
+        return [f"python -m tools.check fails:\n{output}"]
+    failures = []
+    names = [name for kind, name in plan_checks(plan) if kind == "TEST"]
+    names += [name for name in test.changed_tests(created_commit(plan)) if name not in names]
+    if names:
+        code, output = test.execute("TEST", names)
+        if code != 0:
+            failures.append(f"the tests {' '.join(names)} fail:\n{output}")
+    for kind, name in plan_checks(plan):
+        if kind != "COMMAND":
+            continue
+        code, output = test.execute(kind, name)
+        if code != 0:
+            failures.append(f"the check '{kind} {name}' fails:\n{output}")
+    return failures
 
 
 def extension_errors(plan):
@@ -217,66 +413,38 @@ def extension_errors(plan):
     errors = []
     known = [milestone["id"] for milestone in milestones()]
     for row in read_table(read(path), None, EXTENSION_HEADER, rel(path)):
-        if row["Decision"] == "feature" and row["Detail"] in known:
+        if row["Decision"] in FEATURE_EXTENSIONS and row["Detail"] in known:
             continue
         if row["Decision"] == "dropped" and 1 <= words(row["Detail"]) <= 12:
             continue
-        errors.append(f"{rel(path)}: {row['ID']} needs the decision 'feature' with a milestone id or 'dropped' with a reason of max 12 words")
+        errors.append(
+            f"{rel(path)}: {row['ID']} needs the decision 'feature' or 'refactor' with a milestone id, or 'dropped' with a reason of max 12 words"
+        )
     return errors
 
 
-def product_changed(plan):
-    """Whether the plan changed a source or test file of a language of the project since its creation."""
-    project = load_project()
-    roots = [root.rstrip("/") + "/" for entry in project.get("language", []) for root in entry["source"] + entry["tests"]]
-    names = git("diff", "--name-only", created_commit(plan), "HEAD").splitlines()
-    return any(name.startswith(tuple(roots)) for name in names)
-
-
 def gate(plan, milestone, problems):
-    review = None
-    if product_changed(plan):
-        review = review_commit(plan)
-        record = problems.last(("review passed",))
-        parent = git("rev-parse", f"{review}~1")
-        names = git("diff", "--name-only", f"{review}~1", review).splitlines()
-        if not record or not parent.startswith(record["ids"][0]) or names != [problems.rel]:
-            fail("changed after review, run review-plan again")
+    base = close_base(plan)
     errors = []
     if not clean_tree():
         errors.append("the work tree is not clean. Discard the changes of an interrupted close, then run again")
-    errors += [f"step {step_id} is not complete" for step_id in open_steps(plan, milestone)]
+    changed = [name for name in git("diff", "--name-only", base, "HEAD").splitlines() if name.startswith(roots())]
+    if changed:
+        errors.append("a source or test file changed after the merge of the plan, revert the change: " + " ".join(changed))
+    errors += [f"step {step_id} is not complete" for step_id in open_steps(plan, milestone, problems)]
     errors += plan_problem_errors(problems)
     if not problems.last(("tuning done",)):
         errors.append("problems.md is not processed, run python -m tools.plan_close tuning")
     errors += extension_errors(plan)
-    errors += approval_errors(plan, problems, "close", close_base(plan))
+    errors += approval_errors(plan, problems, "close", base)
     errors += [f"memory lint: {error}" for error in memory_lint.errors(strict=True)]
     errors += progress.check_errors()
     if errors:
         fail("plan gate:\n" + "\n".join(errors))
+    # the tests of the plan passed on this tree at the merge, and no source or test file changed since
     code, output = tool("check")
     if code != 0:
         fail(f"plan gate:\npython -m tools.check fails:\n{output}")
-    # the related tests: the checks of the Verification section and each test file the plan changed or added
-    failures = []
-    for check in plan_checks(plan):
-        kind, name = check
-        if kind == "MANUAL":
-            continue
-        code, output = test.execute(kind, name)
-        if code != 0:
-            failures.append(f"the check '{kind} {name}' fails:\n{output}")
-    checked = {name for kind, name in plan_checks(plan) if kind == "TEST"}
-    for test_name in test.changed_tests(created_commit(plan)):
-        if test_name in checked:
-            continue
-        code, output = test.execute("TEST", test_name)
-        if code != 0:
-            failures.append(f"the changed test {test_name} fails:\n{output}")
-    if failures:
-        fail("plan gate:\n" + "\n".join(failures))
-    return review
 
 
 def plan_checks(plan):
@@ -320,18 +488,33 @@ def prune(folder):
         evidence.rmdir()
 
 
+def remove_worktree(plan_id):
+    """Removes the worktree and the branch of a closed plan. The tag of the plan keeps its commits."""
+    path = worktree_path(plan_id)
+    if path.exists():
+        code, output = shell(["git", "worktree", "remove", "--force", str(path)])
+        if code != 0:
+            print(f"the worktree {path} is in use: close the programs there, then run git worktree remove --force {path}")
+            return
+    shell(["git", "worktree", "prune"])
+    if git_ok("rev-parse", "--verify", "--quiet", f"refs/heads/{plan_branch(plan_id)}"):
+        git("branch", "-D", plan_branch(plan_id))
+
+
 def finish_archive():
     pending = dirty_files()
     for plan in plans():
         if plan["archived"] and any(name.startswith(plan["rel"] + "/") for name in pending):
             progress.regenerate()
             commit(f"Plan closed: {plan['id']}")
+            remove_worktree(plan["id"])
             print(f"Plan closed: {plan['id']}")
             return True
     return False
 
 
 def close():
+    require_main()
     if finish_archive():
         return
     plan, milestone, problems = context()
@@ -367,11 +550,12 @@ def close():
     save_plan(plan)
     progress.regenerate()
     commit(f"Plan closed: {plan['id']}")
+    remove_worktree(plan["id"])
     print(f"Plan closed: {plan['id']}")
 
 
 def block():
-    plan, milestone, problems = context()
+    plan, milestone, problems = worktree_context()
     ids = open_plan_important(problems)
     if not ids:
         fail("no Important problem is open")
@@ -379,11 +563,12 @@ def block():
     save_plan(plan)
     problems.record("plan blocked", *ids)
     problems.save()
+    commit(f"Plan blocked: {plan['id']}", [plan["dir"]], verify=False)
     print(f"plan {plan['id']} is blocked, ask the user: accept, drop or replan")
 
 
 def unblock(args):
-    plan, milestone, problems = context()
+    plan, milestone, problems = worktree_context()
     if plan["meta"]["status"] != "blocked":
         fail(f"plan {plan['id']} is not blocked")
     choice = args[0] if args else ""
@@ -399,12 +584,7 @@ def unblock(args):
         fail("the reason must have 1 to 12 words")
     if item and item not in plan["ids"]:
         fail(f"{item} is not an id of plan {plan['id']}")
-    if choice == "drop" and plan["field"] == "features":
-        progress.drop_feature(item, reason)
-    elif choice == "drop":
-        progress.drop_bug(item, reason)
-        problems = Problems(plan)
-    elif choice == "replan" and plan["field"] == "bugs":
+    if choice in ("drop", "replan") and plan["field"] == "bugs":
         problems.record("bug verified withdrawn", item)
     ids = open_plan_important(problems)
     for row in problems.rows:
@@ -412,9 +592,9 @@ def unblock(args):
             row["Answer"] = f"user {choice} {reason}"
     problems.record("plan unblocked", choice, *([item] if item else []))
     problems.save()
-    plan = require_plan()
     plan["meta"]["status"] = "in progress"
     save_plan(plan)
+    commit(f"Plan unblocked: {plan['id']}", [plan["dir"]], verify=False)
     print(f"plan {plan['id']} is in progress, record the review pass")
 
 
@@ -428,15 +608,18 @@ def run(args):
         return check(rest, answer, by)
     if command == "verify-bug" and len(rest) == 1:
         return verify_bug(rest[0])
+    if command == "merge" and len(rest) == 1:
+        return merge(rest[0])
     if command == "unblock":
         return unblock(rest)
-    simple = {"tuning": tuning, "reviewed": reviewed, "review-passed": review_passed, "block": block}
+    simple = {"sync": sync, "tuning": tuning, "reviewed": reviewed, "review-passed": review_passed, "block": block}
     if command in simple and not rest:
         return simple[command]()
     fail(
-        "usage: python -m tools.plan_close [close | tuning | reviewed | review-passed | block"
-        " | check [<id> --answer yes|no [--by agent]] | verify-bug <bug>"
-        ' | unblock <accept "<reason>" | drop <id> "<reason>" | replan <id>>]'
+        "usage: python -m tools.plan_close [close | merge <plan> | tuning"
+        " | check [<id> --answer yes|no [--by agent]] | verify-bug <bug>]\n"
+        "in the worktree of the plan: python -m tools.plan_close <sync | reviewed | review-passed | block"
+        ' | unblock <accept "<reason>" | drop <id> "<reason>" | replan <id>>>'
     )
 
 

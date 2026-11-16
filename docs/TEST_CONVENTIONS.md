@@ -9,9 +9,10 @@ Each rule has an id. A review problem names the id.
 | T02 | A test checks the result, for example the shape of the output data or the scene after user actions. |
 | T03 | A test does not read an internal state. |
 | T04 | A test does not supply dummy data that skips a part of the changed code. |
-| T05 | Write a test of smaller scope for an algorithm only. |
+| T05 | Write a test of smaller scope for an algorithm, and for a rule of one module that the step adds or changes. |
+| T24 | A test of smaller scope calls the public functions of its module only. The feature test checks the outcome, and the smaller tests check the properties. |
 | T06 | Do not write a test for a setter, a getter or a utility. |
-| T07 | A new property of a feature extends the test of the feature. Do not add a second test. |
+| T07 | A new outcome of a feature extends the test of the feature. Do not add a second feature test. |
 | T08 | The name of a test is the name in its check: `TEST <name> passes`. |
 
 ## Fakes
@@ -36,11 +37,13 @@ Each rule has an id. A review problem names the id.
 
 | ID | Rule |
 |---|---|
-| T18 | Run one test with `python -m tools.test <name>`. Run the suite with `python -m tools.test`. |
+| T18 | Run tests with `python -m tools.test <name> [<name> ...]`, in one call for all names. Run the suite with `python -m tools.test`. |
 | T19 | Run the test of a step with `--step <step>`. The tool writes the evidence file. |
 | T20 | In a fix step, run the regression test with `--step` before the fix and again after the fix. |
-| T21 | A step runs its verification and each test that covers the changed code. A plan close runs the checks of its `Verification` section and the tests that the plan changed or added. Only the milestone close runs the whole suite. |
-| T22 | A test covers the changed code when it calls, spawns or reads a changed module, type or function. Find these tests with a search of the test folders for the changed names. |
+| T21 | A step runs its verification and the tests whose files it changes or adds. Nothing else. |
+| T25 | A plan close runs the checks of its `Verification` section and the tests that the plan changed or added. Only the milestone close runs the whole suite. |
+| T22 | A test covers the changed code when it calls, spawns or reads a changed module, type or function. The `Verification` section of a plan lists these tests, so the plan close runs them. |
+| T26 | A test takes no fixed resource of the machine, for example a fixed port or a fixed file outside its own folder. It passes while other tests run. |
 | T23 | A failure of the whole suite at the milestone close is a bug. Run `bug-report` for it and fix it in a fix plan before the close. |
 
 ## Test selection
@@ -55,7 +58,7 @@ flowchart TD
     bug -->|no| exists{Does the feature have a test?}
     exists -->|yes| extend[Extend the test of the feature]
     exists -->|no| feature[Write one test for the feature outcome]
-    feature --> algorithm{Does the step add an algorithm?}
+    feature --> algorithm{Does the step add an algorithm or a rule of one module?}
     extend --> algorithm
     algorithm -->|yes| small[A test of smaller scope is allowed]
     algorithm -->|no| done[No more tests]

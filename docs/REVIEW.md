@@ -5,23 +5,26 @@ The reviewer reads this file before each review. The reviewer never edits a file
 ## Scopes
 | Scope | Input | Checked against |
 |---|---|---|
-| Step review | The diff of one step and the diff of the plan since the `Plan created:` commit | The step text in `plan.md` |
+| Step review | The diff of one step and the diff of the plan since the `Plan created:` commit | The step text in `plan.md` and the dependencies that the step names |
 | Plan review | The diff of the plan since the `Plan created:` commit | `plan.md` and `extensions.md` |
 | Document review | A new or changed milestone file, plan file or extensions file | `docs/DOCS_CONVENTIONS.md` and the milestone |
 
 ## Procedure
-1. Collect candidates. Each candidate maps to a rule id of a conventions file or to a criterion of `plan.md`.
-2. Try to disprove each candidate. Find the input, the code path or the condition that produces the failure.
-3. Drop a candidate when the architecture prevents the failure or when no path to the failure exists.
-4. For a reuse candidate, name the existing function. For a size candidate, name the lines to remove.
-5. Run the test when a test can show the failure.
-6. Check each problem of the previous round again. Write `confirmed` or `re-raised` with the trigger that still exists.
-7. Post the problems that remain. Start the summary with the count. `0 problems` is a valid result.
+1. Run the `Validation` of each row of `docs/DEPENDENCIES.md` that the step names. Then check the failure patterns.
+2. Compare the diff with the `Trigger` of each other row. Post an `Important` problem when the step meets a trigger that its cell does not name.
+3. Collect candidates. Each candidate maps to a rule id of a conventions file or to a criterion of `plan.md`.
+4. Try to disprove each candidate. Find the input, the code path or the condition that produces the failure.
+5. Drop a candidate when the architecture prevents the failure or when no path to the failure exists.
+6. For a reuse candidate, name the existing function. For a size candidate, name the lines to remove.
+7. Run the test when a test can show the failure.
+8. Check each problem of the previous round again. Write `confirmed` or `re-raised` with the trigger that still exists.
+9. Post the problems that remain. Start the summary with the count. `0 problems` is a valid result.
 
 ## Candidates
 | Question | Rule |
 |---|---|
 | Does the change do what the step text says? | C01 |
+| Does the change do the action of each dependency that the step names or meets? | D202 |
 | Does the change break a caller? | C02 |
 | Does the change duplicate code, or undo an earlier step of the plan? | C03 |
 | Does the change expose data or secrets? | C04 |
@@ -32,11 +35,15 @@ The reviewer reads this file before each review. The reviewer never edits a file
 ## Problem format
 ```
 N03 Important C12 src/route/draw.py:88
+Topic: empty input
 Trigger: a route with zero points; draw() divides by len(points)
 Class: every caller of draw() that passes user supplied points
 Fix: return before the division when points is empty
 ```
 - The severity is `Important`, `Nit` or `Pre-existing`.
+- `Topic` has one or two words for the subject of the failure. Use the topic of an earlier problem of the plans when the subject is the same.
+- An `Important` problem is non-breaking when the result of the step works and the problem shows only in a corner case or a rare sequence.
+- A problem that breaks the result of the step, loses user data or opens a security hole is breaking.
 - Drop a problem that has no rule or no trigger.
 - `Pre-existing` marks a problem that the step did not introduce.
 - `Class` names every place where the same fix applies.
@@ -69,6 +76,7 @@ A change to one of these paths needs an approval record of the user. A path of t
 | docs/CODE_CONVENTIONS.md |
 | docs/TEST_CONVENTIONS.md |
 | docs/DOCS_CONVENTIONS.md |
+| docs/DEPENDENCIES.md |
 | DEPLOYMENT.md |
 | .vale.ini |
 | .claude/** |

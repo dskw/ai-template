@@ -6,12 +6,15 @@ from tools._lib import (
     ask,
     changed_since,
     clean_tree,
+    commit,
     fail,
     git,
     main,
     protected_patterns,
     require_branch,
+    require_main,
     require_plan,
+    require_worktree,
     subjects,
     take_option,
 )
@@ -34,12 +37,12 @@ def created_commit(plan):
 
 
 def close_base(plan):
-    step = re.compile(rf"^Step closed: {plan['id']} S\d\d$")
-    created = f"Plan created: {plan['id']}"
+    """The commit that the writes of the plan close follow: the squash commit of the plan."""
+    merged = f"Plan merged: {plan['id']}"
     for commit_hash, subject in subjects():
-        if step.match(subject) or subject == created:
+        if subject == merged:
             return commit_hash
-    fail(f"the commit '{created}' is missing")
+    fail(f"the commit '{merged}' is missing, run python -m tools.plan_close merge {plan['id']}")
 
 
 def run(args):
@@ -53,6 +56,10 @@ def run(args):
     if not clean_tree():
         fail("the work tree is not clean, commit the changes first")
     target = args[1]
+    if target == "close":
+        require_main()
+    else:
+        require_worktree(plan["id"])
     problems = Problems(plan)
     base = close_base(plan) if target == "close" else step_base(problems, target)
     patterns = protected_patterns()
@@ -64,6 +71,7 @@ def run(args):
     approved = ask(question, answer)
     problems.record("approved" if approved else "rejected", target, git("rev-parse", "--short=12", "HEAD"))
     problems.save()
+    commit(f"Approval recorded: {plan['id']} {target}", [problems.path], verify=False)
     print(f"{'approved' if approved else 'rejected'} {plan['id']} {target}")
 
 

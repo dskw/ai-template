@@ -1,13 +1,13 @@
 ---
 name: bug-report
-description: Adds a bug to the open milestone with text, feature, source and acceptance. Use it when the user reports a bug, when a review posts a pre-existing problem, or when the user accepts a problem of a blocked plan.
+description: Adds a bug to the open milestone with text, feature, source and acceptance. Use it in the main repository when the user reports a bug, when a plan close finds a pre-existing problem, or when the user accepts a problem of a plan.
 ---
 # bug-report
 
 The rules of a bug row are in `docs/DOCS_CONVENTIONS.md`, section Bugs.
 
 ## Procedure
-1. Run `python -m tools.progress status`. When no milestone is open, run `milestone-create` for a milestone with bugs only.
+1. Work in the main repository. Run `python -m tools.progress status`. When no milestone is open, run `milestone-create` for a milestone with bugs only.
 2. Write the bug text. It names what the user sees.
 3. Find the feature that the bug belongs to in the milestone files. Leave the feature empty when no feature matches.
 4. Set the source: `user`, or the plan id and the problem id of the review.
@@ -19,4 +19,5 @@ The rules of a bug row are in `docs/DOCS_CONVENTIONS.md`, section Bugs.
 
 ## Rules
 - A bug report during a plan does not change that plan.
+- In the worktree of a plan, a bug of the user waits: tell the user to report it in the main repository.
 - No review runs for a bug row. The tool validates it.

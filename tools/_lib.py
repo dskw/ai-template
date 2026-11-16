@@ -27,12 +27,57 @@ CHECK = re.compile(r"^(?:(TEST|COMMAND) (\S+) passes|(MANUAL) (\S+))$")
 
 FEATURE_HEADER = ["ID", "Feature", "Type", "Acceptance", "Plans", "State"]
 BUG_HEADER = ["ID", "Bug", "Feature", "Source", "Acceptance"]
-STEP_HEADER = ["Step", "Feature", "Text", "Verification"]
+STEP_HEADER = ["Step", "Feature", "Text", "Verification", "Dependencies"]
+# a plan from before the Dependencies column keeps its table
+OLD_STEP_HEADER = ["Step", "Feature", "Text", "Verification"]
 FIX_HEADER = ["Step", "Feature", "Problem", "Text", "Verification"]
 PROGRESS_HEADER = ["Step", "Feature", "State", "Evidence", "Round"]
-PROBLEM_HEADER = ["ID", "Step", "Round", "Severity", "Rule", "Location", "Trigger", "Class", "Fix", "Answer", "Check"]
+PROBLEM_HEADER = ["ID", "Step", "Round", "Severity", "Rule", "Topic", "Location", "Trigger", "Class", "Fix", "Answer", "Check"]
+# a problems file from before the Topic column keeps its table
+OLD_PROBLEM_HEADER = ["ID", "Step", "Round", "Severity", "Rule", "Location", "Trigger", "Class", "Fix", "Answer", "Check"]
 EXTENSION_HEADER = ["ID", "Extension", "Decision", "Detail"]
 MILESTONE_HEADER = ["Milestone", "Features", "Done", "Bugs", "Status"]
+DEPENDENCY_HEADER = ["ID", "Trigger", "Action", "Validation"]
+DEPENDENCY_ID = re.compile(r"^DEP-\d{2}$")
+PLAN_TYPES = ("feature", "fix", "refactor")
+FEATURE_TYPES = ("new", "update", "refactor")
+
+# the files that a generator writes; an agent edits the source
+GENERATED = [
+    ".claude/**",
+    ".codex/**",
+    ".kilo/**",
+    ".agents/.generated/**",
+    "CLAUDE.md",
+    ".mcp.json",
+    "kilo.jsonc",
+    "docs/MEMORY.md",
+    "docs/wiki/assets/pages.js",
+    "docs/wiki/index.html",
+]
+# the files that only a tool writes and commits
+TOOL_OWNED = [
+    "docs/milestones/PROGRESS.md",
+    "docs/milestones/archive/**",
+    "docs/plans/archive/**",
+    "docs/plans/*/progress.md",
+    "docs/plans/*/evidence/**",
+    "docs/plans/IDEAS.md",
+    "docs/DEPENDENCIES.md",
+]
+# a milestone file and a plan file are editable while their status is draft, then only a tool writes them
+DRAFT_ONLY = ["docs/milestones/M*.md", "docs/plans/*/plan.md"]
+# the files of the whole milestone: a session writes them in the main repository, never in the worktree of a plan
+SHARED = [
+    "docs/milestones/**",
+    "docs/plans/IDEAS.md",
+    "docs/memories/**",
+    "docs/MEMORY.md",
+    "docs/ai-setup-adjustments.md",
+    "docs/DEPENDENCIES.md",
+]
+# a tool sets this variable for its own commit, so the commit check accepts a tool-owned file
+TOOL_COMMIT = "SETUP_TOOL_COMMIT"
 
 RECORD_TYPES = [
     "milestone manual passed",
@@ -102,12 +147,13 @@ def words(text):
     return len(text.split())
 
 
-def run(command, stdin=None):
+def run(command, stdin=None, env=None, cwd=None):
     result = subprocess.run(
         command,
-        cwd=ROOT,
+        cwd=cwd or ROOT,
         shell=isinstance(command, str),
         input=stdin,
+        env={**os.environ, **env} if env else None,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
@@ -115,8 +161,8 @@ def run(command, stdin=None):
     return result.returncode, output
 
 
-def tool(name, *args):
-    return run([sys.executable, "-m", f"tools.{name}", *args])
+def tool(name, *args, env=None):
+    return run([sys.executable, "-m", f"tools.{name}", *args], env=env)
 
 
 def git(*args, check=True):
@@ -154,18 +200,28 @@ def has_commit(subject):
     return any(found == subject for _, found in subjects())
 
 
-def commit(message, paths=None):
+def tool_git(*args):
+    """Runs a Git command that commits as a tool, so the commit check accepts the tool-owned files."""
+    code, output = run(["git", *args], env={TOOL_COMMIT: "1"})
+    if code != 0:
+        fail(f"git {' '.join(args)} failed:\n{output.strip()}")
+    return output.strip()
+
+
+def commit(message, paths=None, verify=True):
+    """Commits as a tool. `verify=False` skips the commit hook for a commit that holds state files of a tool only."""
+    options = [] if verify else ["--no-verify"]
     if paths:
         paths = [rel(path) for path in paths]
         git("add", "-A", "--", *paths)
         if git_ok("diff", "--cached", "--quiet", "--", *paths):
             return False
-        git("commit", "-m", message, "--", *paths)
+        tool_git("commit", *options, "-m", message, "--", *paths)
     else:
         git("add", "-A")
         if git_ok("diff", "--cached", "--quiet"):
             return False
-        git("commit", "-m", message)
+        tool_git("commit", *options, "-m", message)
     return True
 
 
@@ -198,7 +254,43 @@ def milestone_branches():
     return git("branch", "--list", "milestone/*", "--format=%(refname:short)").splitlines()
 
 
+_MAIN_ROOT = []
+
+
+def main_root():
+    """The work tree of the main repository. In the worktree of a plan it differs from `ROOT`."""
+    if not _MAIN_ROOT:
+        code, output = run(["git", "rev-parse", "--git-common-dir"])
+        _MAIN_ROOT.append((ROOT / output.strip()).resolve().parent if code == 0 else ROOT.resolve())
+    return _MAIN_ROOT[0]
+
+
+def in_worktree():
+    return main_root() != ROOT.resolve()
+
+
+def plan_branch(plan_id):
+    return f"plan/{plan_id}"
+
+
+def worktree_path(plan_id):
+    return main_root() / ".worktrees" / plan_id
+
+
+def require_main():
+    if in_worktree():
+        fail(f"run this command in the main repository: {main_root()}")
+
+
+def require_worktree(plan_id=None):
+    if not in_worktree():
+        place = worktree_path(plan_id) if plan_id else "the worktree of the plan"
+        fail(f"run this command in {place}")
+
+
 def expected_branch():
+    if in_worktree():
+        return plan_branch(ROOT.name)
     milestone = open_milestone()
     if milestone:
         return milestone_branch(milestone)
@@ -278,17 +370,20 @@ def table_span(lines, heading, path):
     return first, last
 
 
-def read_table(text, heading, header, path):
+def read_table(text, heading, header, path, old_header=None):
+    """The rows of a table. A table with `old_header` is read too; its rows get an empty cell per new column."""
     lines = text.split("\n")
     first, last = table_span(lines, heading, path)
-    if split_row(lines[first]) != header:
+    found = split_row(lines[first])
+    if found != header and found != old_header:
         fail(f"{path}:{first + 1}: the table header must be {format_row(header)}")
     rows = []
     for number in range(first + 2, last):
         cells = split_row(lines[number])
-        if len(cells) != len(header):
-            fail(f"{path}:{number + 1}: the row must have {len(header)} cells")
-        row = dict(zip(header, cells))
+        if len(cells) != len(found):
+            fail(f"{path}:{number + 1}: the row must have {len(found)} cells")
+        row = {name: "" for name in header}
+        row.update(zip(found, cells))
         for name in STATE_COLUMNS & row.keys():
             row[name] = plain_state(row[name])
         rows.append(row)
@@ -447,9 +542,9 @@ def load_plan(folder):
             fail(f"{name}: the frontmatter field '{key}' is missing")
     if meta["id"] != f"{match.group(1)}-{match.group(2)}" or meta["milestone"] != match.group(1):
         fail(f"{name}: the fields id and milestone must match the folder name")
-    if meta["type"] not in ("feature", "fix"):
-        fail(f"{name}: type must be feature or fix")
-    field = "features" if meta["type"] == "feature" else "bugs"
+    if meta["type"] not in PLAN_TYPES:
+        fail(f"{name}: type must be feature, fix or refactor")
+    field = "bugs" if meta["type"] == "fix" else "features"
     other = "bugs" if field == "features" else "features"
     if other in meta or not isinstance(meta.get(field), list):
         fail(f"{name}: a {meta['type']} plan holds its ids in the list field '{field}'")
@@ -468,7 +563,7 @@ def load_plan(folder):
         "field": field,
         "ids": meta[field],
         "archived": folder.parent.name == "archive",
-        "steps": read_table(text, "Steps", STEP_HEADER, name),
+        "steps": read_table(text, "Steps", STEP_HEADER, name, OLD_STEP_HEADER),
         "fixes": read_table(text, "Fix steps", FIX_HEADER, name),
         "progress": read_table(read(progress), None, PROGRESS_HEADER, rel(progress)) if progress.exists() else [],
     }
@@ -487,18 +582,55 @@ def plans():
     return [load_plan(folder) for folder in plan_dirs()]
 
 
+def active_plans():
+    """Each plan in progress or blocked that this work tree holds."""
+    return [p for p in plans() if not p["archived"] and p["meta"]["status"] in ("in progress", "blocked")]
+
+
+def merged(plan_id):
+    """Whether the milestone branch holds the squash commit of the plan."""
+    return has_commit(f"Plan merged: {plan_id}")
+
+
 def active_plan():
-    found = [p for p in plans() if not p["archived"] and p["meta"]["status"] in ("in progress", "blocked")]
-    if len(found) > 1:
-        fail("two plans are active: " + " ".join(p["id"] for p in found))
-    return found[0] if found else None
+    """The plan of this work tree: in a worktree the plan of its branch, in the main repository the plan in close."""
+    found = active_plans()
+    if in_worktree():
+        own = [p for p in found if plan_branch(p["id"]) == branch()]
+        return own[0] if own else None
+    closing = [p for p in found if merged(p["id"])]
+    if len(closing) > 1:
+        fail("two plans are in close: " + " ".join(p["id"] for p in closing))
+    return closing[0] if closing else None
 
 
 def require_plan():
     plan = active_plan()
+    if not plan and in_worktree():
+        fail(f"the branch {branch() or 'detached HEAD'} has no active plan")
     if not plan:
-        fail("no active plan")
+        names = " ".join(p["id"] for p in active_plans())
+        fail(f"no plan is in close. Active plans: {names or 'none'}. Work on a plan in its worktree")
     return plan
+
+
+def dependency_rows():
+    """The rows of the dependencies file, or no row when the project has no such file."""
+    path = DOCS / "DEPENDENCIES.md"
+    if not path.exists():
+        return []
+    return read_table(read(path), "Dependencies", DEPENDENCY_HEADER, rel(path))
+
+
+def dependency_errors(cell, name):
+    """The errors of the Dependencies cell of a step: it holds `none` or ids of the dependencies file."""
+    known = {row["ID"] for row in dependency_rows()}
+    ids = cell.split()
+    if not ids:
+        return [f"{name}: the Dependencies cell is empty, write the ids or 'none'"]
+    if ids == ["none"]:
+        return []
+    return [f"{name}: {item} is not an id of docs/DEPENDENCIES.md" for item in ids if item not in known]
 
 
 def all_steps(plan):
@@ -536,16 +668,17 @@ class Problems:
     def __init__(self, plan):
         self.path = plan["dir"] / "problems.md"
         self.rel = rel(self.path)
-        self.rows, self.records = [], []
+        self.rows, self.records, self.header = [], [], PROBLEM_HEADER
         if not self.path.exists():
             if plan.get("archived"):
                 self.text = ""
                 return
             fail(f"{self.rel}: the file is missing")
         self.text = read(self.path)
-        self.rows = read_table(self.text, "Problems", PROBLEM_HEADER, self.rel)
-        self.records = []
+        self.rows = read_table(self.text, "Problems", PROBLEM_HEADER, self.rel, OLD_PROBLEM_HEADER)
         lines = self.text.split("\n")
+        if split_row(lines[table_span(lines, "Problems", self.rel)[0]]) == OLD_PROBLEM_HEADER:
+            self.header = OLD_PROBLEM_HEADER
         if "## Records" not in lines:
             fail(f"{self.rel}: section '## Records' is missing")
         for number in range(lines.index("## Records") + 1, len(lines)):
@@ -575,6 +708,8 @@ class Problems:
         for cell in ("Rule", "Location", "Trigger", "Class", "Fix"):
             if not row[cell]:
                 fail(f"{name}: the cell {cell} is empty")
+        if self.header == PROBLEM_HEADER and not 1 <= words(row["Topic"]) <= 2:
+            fail(f"{name}: Topic must have one or two words")
         answer = row["Answer"]
         if answer and not re.match(r"^(fixed \S+|closed (wrong|intentional|prevented) \S.*|reverted|user \S.*|fix \S+|bug \S+)$", answer):
             fail(f"{name}: Answer must be 'fixed <commit>' or 'closed <wrong|intentional|prevented> <reason>'")
@@ -604,7 +739,7 @@ class Problems:
         return count
 
     def save(self):
-        self.text = write_table(self.text, "Problems", PROBLEM_HEADER, self.rows, self.rel)
+        self.text = write_table(self.text, "Problems", self.header, self.rows, self.rel)
         write(self.path, self.text)
 
 

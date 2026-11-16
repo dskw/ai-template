@@ -8,10 +8,11 @@ Not initialized. Run the `project-init` skill. The design documents are in `docs
 - `docs/TEST_CONVENTIONS.md`: read it before you write, change or review a test.
 - `docs/DOCS_CONVENTIONS.md`: read it before you write a document, run a skill or change the setup.
 - `docs/REVIEW.md`: read it before you review a change or change a protected path.
+- `docs/DEPENDENCIES.md`: read it before you write a plan or implement a step.
 - `docs/ai-setup-adjustments.md`: add a finding when the AI setup causes a problem. Keep it independent of the project.
 
 ## Status
-Run `python -m tools.progress status` at session start when no hook injected its output. Continue with the step it prints. Never start a different step. When it prints `bugfix phase`, start a fix plan with `plan-create`.
+Run `python -m tools.progress status` at session start when no hook injected its output. In the worktree of a plan, continue with the step it prints. Never start a different step. In the main repository it prints each active plan with its worktree. When it prints `bugfix phase`, start a fix plan with `plan-create`.
 
 ## Skills
 - The main session orchestrates: it runs the tools, asks the user and reads the agent reports. The `implementor` agent writes the code and the `reviewer` agent reviews it.
@@ -19,10 +20,10 @@ Run `python -m tools.progress status` at session start when no hook injected its
 - `project-update`: changes a project binding. Use it for a new language, tool, pipeline or MCP server.
 - `milestone-propose`: proposes the next milestone. Use it when the user asks for suggestions.
 - `milestone-create`: writes a milestone. Use it when no milestone is open.
-- `plan-create`: writes a plan for open features or for bugs. Use it when no plan is active.
-- `step-run`: implements the step that the status prints.
+- `plan-create`: writes a plan for open features, for bugs or for a refactor, and creates its worktree. Use it in the main repository.
+- `step-run`: implements the step that the status prints. Use it in the worktree of the plan.
 - `review-step`: reviews the step in progress. `step-run` calls it.
-- `plan-close`: closes the active plan when no step is open.
+- `plan-close`: closes a plan when no step is open, first in its worktree, then in the main repository.
 - `review-plan`: reviews the whole plan. `plan-close` calls it.
 - `bug-report`: adds a bug to the open milestone.
 - `bug-fix`: verifies the fixed bugs of a fix plan. `plan-close` calls it.
@@ -31,6 +32,8 @@ Run `python -m tools.progress status` at session start when no hook injected its
 - `idea-remove`: removes planned or dropped ideas. `milestone-create` calls it.
 - `memory-save`: creates or updates a memory.
 - `memory-consolidate`: reviews, merges and deletes memories. `plan-close` calls it.
+- `dependency-add`: adds a structural dependency of the project. `milestone-create` and `plan-close` call it.
+- `dependency-remove`: removes a dependency after a refactor. `plan-close` calls it.
 
 ## Memory
 - Read `docs/MEMORY.md` at session start when no hook injected it. Open an entry file only when its index line is relevant to the task.

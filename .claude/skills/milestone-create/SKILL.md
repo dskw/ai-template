@@ -11,7 +11,7 @@ The format and the rules of a milestone file are in `docs/DOCS_CONVENTIONS.md`, 
 2. Choose a short name in lower case with hyphens.
 3. Run `python -m tools.milestone_create start <name>`. It creates the milestone branch and the draft file.
 4. For the new milestone of a premature close, run `python -m tools.milestone_create start <name> --migrate`.
-5. Read `docs/design/` and the user request.
+5. Read `docs/design/`, `docs/DEPENDENCIES.md` and the user request.
 6. Write the `Goal`, the feature rows and the `Out of scope` list into the draft file.
 7. A feature row has the next id, the feature text, the type and one acceptance check. `Plans` stays empty. `State` is `open`.
 8. Ask the user for each acceptance that `docs/design/` does not give. A feature without acceptance does not pass.
@@ -20,6 +20,8 @@ The format and the rules of a milestone file are in `docs/DOCS_CONVENTIONS.md`, 
 11. Fix each problem in the draft file. When the review posted an `Important` problem, run a second review of the answers and the changed lines only, up to three reviews.
 12. Run `python -m tools.milestone_create commit`. Fix each item that it names and run it again.
 13. Run `idea-remove` for each idea of the ideas file that the milestone plans, with the milestone id as reason.
+14. When the design gives the milestone a system that later work must respect, run `dependency-add` for it with the milestone id as source.
+15. When a feature adds a further instance of something that exists, name it to the user. A feature of the type `refactor` comes first when the code needs too many places for the instance.
 
 ## Scope change of an open milestone
 After the creation commit, change the goal with `python -m tools.progress set-goal "<text>"`. Change the out of scope list with `python -m tools.progress out-of-scope add "<item>"` or `out-of-scope remove "<item>"`. Run them only on a user decision.

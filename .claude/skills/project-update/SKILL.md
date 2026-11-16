@@ -8,7 +8,7 @@ The procedure and the formats are in `docs/DOCS_CONVENTIONS.md`, section Project
 
 ## Procedure
 1. Run `python -m tools.progress status`. Stop when a plan is active.
-2. Ask the user which binding changes: language, platform, framework, formatter, linter, test runner, pipeline or MCP server.
+2. Ask the user which binding changes: language, platform, framework, formatter, linter, test runner, test report, test support folder, pipeline or MCP server.
 3. Ask one question per changed binding. Show the current value as the first option.
 4. Follow the question rules of `project-init`.
 5. For an MCP server, state in one line what it gives the agent and which step type uses it.

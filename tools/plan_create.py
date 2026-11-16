@@ -4,11 +4,17 @@ from tools._lib import (
     EXTENSION_HEADER,
     FEATURE_ID,
     PLAN_DIR,
+    PLAN_TYPES,
     PLANS,
     PROBLEM_HEADER,
-    active_plan,
+    active_plans,
     commit,
+    dependency_errors,
     fail,
+    git,
+    git_ok,
+    plan_branch,
+    worktree_path,
     read,
     today,
     main,
@@ -17,6 +23,7 @@ from tools._lib import (
     plans,
     rel,
     require_branch,
+    require_main,
     save_plan,
     table_lines,
     words,
@@ -36,8 +43,8 @@ closed:
 # {id} {title}
 
 ## Steps
-| Step | Feature | Text | Verification |
-|---|---|---|---|
+| Step | Feature | Text | Verification | Dependencies |
+|---|---|---|---|---|
 
 ## Fix steps
 | Step | Feature | Problem | Text | Verification |
@@ -63,15 +70,14 @@ def context():
     milestone = open_milestone()
     if not milestone:
         fail("no open milestone, run milestone-create")
+    require_main()
     require_branch()
-    if active_plan():
-        fail(f"plan {active_plan()['id']} is active. One plan runs at a time")
     return milestone
 
 
 def start(kind, name):
-    if kind not in ("feature", "fix"):
-        fail("the type must be feature or fix")
+    if kind not in PLAN_TYPES:
+        fail("the type must be feature, fix or refactor")
     if not PLAN_DIR.match(f"M000-P000-{name}"):
         fail("the name must have lower case letters, digits and hyphens")
     milestone = context()
@@ -80,7 +86,7 @@ def start(kind, name):
     numbers = [int(plan["id"][6:]) for plan in plans() if plan["meta"]["milestone"] == milestone["id"]]
     plan_id = f"{milestone['id']}-P{max(numbers, default=0) + 1:03d}"
     folder = PLANS / f"{plan_id}-{name}"
-    field = "features" if kind == "feature" else "bugs"
+    field = "bugs" if kind == "fix" else "features"
     title = name.replace("-", " ").capitalize()
     write(folder / "plan.md", TEMPLATE.format(id=plan_id, milestone=milestone["id"], type=kind, field=field, title=title))
     skeleton(folder)
@@ -95,14 +101,24 @@ def validate(plan, milestone):
     if not plan["ids"]:
         errors.append(f"{name}: the field '{plan['field']}' is empty")
     if plan["field"] == "features":
-        valid = {row["ID"] for row in milestone["features"] if row["State"] in ("open", "in progress")}
-        pattern, label = FEATURE_ID, "an open or in progress feature"
+        refactor = plan["meta"]["type"] == "refactor"
+        valid = {
+            row["ID"]
+            for row in milestone["features"]
+            if row["State"] in ("open", "in progress") and (row["Type"] == "refactor") == refactor
+        }
+        pattern = FEATURE_ID
+        label = "an open or in progress feature of the type refactor" if refactor else "an open or in progress feature that is no refactor"
     else:
         valid = {row["ID"] for row in milestone["bugs"]}
         pattern, label = BUG_ID, "a bug of the Bugs table"
     for item in plan["ids"]:
         if not pattern.match(item) or item not in valid:
             errors.append(f"{name}: {item} is not {label} of {milestone['id']}")
+    for other in active_plans():
+        held = [item for item in plan["ids"] if other["field"] == plan["field"] and item in other["ids"]]
+        if other["id"] != plan["id"] and held:
+            errors.append(f"{name}: the active plan {other['id']} holds {' '.join(held)}")
     if not plan["steps"]:
         errors.append(f"{name}: the Steps table is empty")
     if plan["fixes"]:
@@ -119,6 +135,7 @@ def validate(plan, milestone):
             errors.append(f"{name}: {step['Step']}: the verification must be 'TEST <name> passes', 'COMMAND <name> passes' or 'MANUAL <name>'")
         elif plan["field"] == "bugs" and step["Verification"] != acceptance.get(step["Feature"]):
             errors.append(f"{name}: {step['Step']}: the verification must be the acceptance of {step['Feature']}")
+        errors += dependency_errors(step["Dependencies"], f"{name}: {step['Step']}")
     if plan["field"] == "features":
         # the steps of one feature extend the one test of that feature
         for item in plan["ids"]:
@@ -144,7 +161,8 @@ def reviewed():
     found = drafts()
     if len(found) != 1:
         fail("one draft plan is expected")
-    path = found[0] / "problems.md"
+    skeleton(found[0]["dir"])
+    path = found[0]["dir"] / "problems.md"
     write(path, read(path).rstrip("\n") + f"\n- document reviewed {today()}\n")
     print("document review recorded")
 
@@ -168,17 +186,33 @@ def create():
     progress.regenerate()
     commit(f"Plan created: {plan['id']}")
     print(f"Plan created: {plan['id']}")
+    worktree(plan["id"])
+
+
+def worktree(plan_id):
+    """Creates the branch and the worktree of a plan from the milestone branch, when they do not exist yet."""
+    name, path = plan_branch(plan_id), worktree_path(plan_id)
+    if not git_ok("rev-parse", "--verify", "--quiet", f"refs/heads/{name}"):
+        git("branch", name)
+    if not path.exists():
+        git("worktree", "add", str(path), name)
+    print(f"worktree: {path}")
 
 
 def run(args):
     if args[:1] == ["start"] and len(args) == 3:
         start(args[1], args[2])
+    elif args[:1] == ["worktree"] and len(args) == 2:
+        require_main()
+        if args[1] not in [plan["id"] for plan in active_plans()]:
+            fail(f"{args[1]} is no active plan")
+        worktree(args[1])
     elif args == ["reviewed"]:
         reviewed()
     elif args == ["commit"]:
         create()
     else:
-        fail("usage: python -m tools.plan_create <start <feature|fix> <name> | commit>")
+        fail("usage: python -m tools.plan_create <start <feature|fix|refactor> <name> | reviewed | commit | worktree <plan>>")
 
 
 if __name__ == "__main__":

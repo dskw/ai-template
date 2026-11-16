@@ -59,7 +59,9 @@ def generate(source, matcher):
         if hook["event"] != "session_start":
             group = {"matcher": matcher(hook, "claude"), **group}
         hooks.setdefault(EVENTS[hook["event"]], []).append(group)
-    settings = {"autoMemoryEnabled": False, "env": {"PYTHONUTF8": "1"}, "hooks": hooks}
+    # the answer of the user to an approval or a manual check: the harness asks before a command passes one
+    permissions = {"ask": ["Bash(* --answer *)"]}
+    settings = {"autoMemoryEnabled": False, "env": {"PYTHONUTF8": "1"}, "permissions": permissions, "hooks": hooks}
     files[".claude/settings.json"] = json.dumps(settings, indent=2) + "\n"
     servers = {server["name"]: server_entry(server) for server in source["mcp"]}
     files[".mcp.json"] = json.dumps({"mcpServers": servers}, indent=2) + "\n"

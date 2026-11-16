@@ -1,5 +1,6 @@
 from tools import progress, project
 from tools._lib import (
+    FEATURE_TYPES,
     MILESTONE_FILE,
     MILESTONES,
     commit,
@@ -13,6 +14,7 @@ from tools._lib import (
     parse_check,
     rel,
     require_branch,
+    require_main,
     save_milestone,
     today,
     words,
@@ -68,8 +70,8 @@ def validate(milestone, all_milestones):
             errors.append(f"{name}: feature row {number} must have the id F{number:02d}")
         if not 1 <= words(row["Feature"]) <= 12:
             errors.append(f"{name}: {row['ID']}: the feature text must have 1 to 12 words")
-        if row["Type"] not in ("new", "update"):
-            errors.append(f"{name}: {row['ID']}: Type must be new or update")
+        if row["Type"] not in FEATURE_TYPES:
+            errors.append(f"{name}: {row['ID']}: Type must be new, update or refactor")
         if not parse_check(row["Acceptance"]):
             errors.append(f"{name}: {row['ID']}: the acceptance must be 'TEST <name> passes', 'COMMAND <name> passes' or 'MANUAL <name>'")
         if row["Plans"] or row["State"] != "open":
@@ -127,6 +129,7 @@ def create():
 
 
 def run(args):
+    require_main()
     if args[:1] == ["start"] and len([a for a in args[1:] if a != "--migrate"]) == 1:
         start(next(a for a in args[1:] if a != "--migrate"), "--migrate" in args)
     elif args == ["commit"]:

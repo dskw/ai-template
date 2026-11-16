@@ -23,8 +23,10 @@ from tools._lib import (
     parse_check,
     problem_errors,
     progress_row,
+    dependency_errors,
     require_branch,
     require_plan,
+    require_worktree,
     run as shell,
     save_plan,
     settled,
@@ -38,6 +40,7 @@ STEP_HINT = "revert the step with python -m tools.step_close revert, or block it
 
 
 def context(step_id=None):
+    require_worktree()
     plan = require_plan()
     milestone = open_milestone()
     if not milestone or milestone["id"] != plan["meta"]["milestone"]:
@@ -48,7 +51,19 @@ def context(step_id=None):
 
 
 def rounds(problems, step_id):
-    return problems.count_since("step reviewed", ("step reverted", "step unblocked"), step_id)
+    """The review rounds of a step since its last revert. The unblock of a blocked step starts the count again;
+    the acceptance of an open problem of a step in progress does not."""
+    count, blocked = 0, False
+    for record in problems.records:
+        if record["ids"][:1] != [step_id]:
+            continue
+        if record["type"] == "step reverted" or (record["type"] == "step unblocked" and blocked):
+            count, blocked = 0, False
+        elif record["type"] == "step blocked":
+            blocked = True
+        elif record["type"] == "step reviewed":
+            count += 1
+    return count
 
 
 def reverts(problems, step_id):
@@ -65,10 +80,15 @@ def start(step_id):
     expected = progress.next_step(plan, milestone)
     if row["State"] != "open" or step_id != expected:
         fail(f"the next step is {expected}")
+    step = find_step(plan, step_id)
+    errors = dependency_errors(step["Dependencies"], f"step {step_id}") if "Dependencies" in step else []
+    if errors:
+        fail("\n".join(errors))
     row["State"] = "in progress"
     save_plan(plan)
     problems.record("step started", step_id, git("rev-parse", "--short=12", "HEAD"))
     problems.save()
+    commit(f"Step started: {plan['id']} {step_id}", [plan["dir"]], verify=False)
     print(f"step {step_id} is in progress")
 
 
@@ -105,8 +125,9 @@ def revert(step_id):
     if not clean_tree():
         fail("the work tree is not clean, commit the changes first")
     base = step_base(problems, step_id)
-    lines = git("log", "--format=%H%x09%s", f"{base}..HEAD").splitlines()
-    commits = [line.split("\t")[0] for line in lines if not re.match(r"^\S+\t(Bug reported|Bug dropped|Milestone updated): ", line)]
+    # the own commits of the plan branch only: a merge of the milestone branch brings the work of other plans
+    lines = git("log", "--first-parent", "--no-merges", "--format=%H%x09%s", f"{base}..HEAD").splitlines()
+    commits = [line.split("\t")[0] for line in lines]
     # a commit of memories, setup findings, milestones or other plans stays, also inside a mixed commit
     kept, mixed = [], []
     for commit_hash in commits:
@@ -174,22 +195,22 @@ def close(step_id, answer, by=None):
         test.append_evidence(plan, step_id, name, "MANUAL", 0 if passed else 1, manual_source(by, passed))
         if not passed:
             errors.append(f"the manual check {name} failed")
-    else:
+    elif kind == "COMMAND":
         code, output = test.execute(kind, name, plan, step_id)
         if code != 0:
             errors.append(f"the verification '{step['Verification']}' fails:\n{output}")
+    # one call of the runner: the verification and each test file that the step changed or added
+    names = [name] if kind == "TEST" else []
+    names += [item for item in test.changed_tests(step_base(problems, step_id)) if item not in names]
+    if names:
+        code, output = test.execute("TEST", names, plan, step_id)
+        if code != 0:
+            errors.append(f"the tests {' '.join(names)} fail:\n{output}")
     if not test.evidence_path(plan, step_id).is_file():
         errors.append("the evidence file is missing")
     code, output = tool("check")
     if code != 0:
         errors.append(f"python -m tools.check fails:\n{output}")
-    # the related tests: each test file that the step changed or added; the whole suite runs at the milestone close
-    for test_name in test.changed_tests(step_base(problems, step_id)):
-        if (kind, name) == ("TEST", test_name):
-            continue
-        code, output = test.execute("TEST", test_name, plan, step_id)
-        if code != 0:
-            errors.append(f"the changed test {test_name} fails:\n{output}")
     if errors:
         fail("step gate:\n" + "\n".join(errors))
     row["State"], row["Evidence"], row["Round"] = "complete", f"evidence/{step_id}-test.txt", str(count)
@@ -210,6 +231,7 @@ def block(step_id):
     save_plan(plan)
     problems.record("step blocked", step_id, *open_important(step_rows(problems, step_id), rounds(problems, step_id)))
     problems.save()
+    commit(f"Step blocked: {plan['id']} {step_id}", [plan["dir"]], verify=False)
     print(f"step {step_id} is blocked, ask the user")
 
 
@@ -230,6 +252,7 @@ def unblock(step_id, answer):
     row["State"] = "in progress"
     plan["meta"]["status"] = "in progress"
     save_plan(plan)
+    commit(f"Step unblocked: {plan['id']} {step_id}", [plan["dir"]], verify=False)
     print(f"step {step_id} is in progress")
 
 
@@ -254,6 +277,7 @@ def add_fix(problem_id, step_id):
     problem["Answer"] = f"fix {fix_id}"
     problems.record("fix added", fix_id, problem_id)
     problems.save()
+    commit(f"Fix step added: {plan['id']} {fix_id}", [plan["dir"]], verify=False)
     print(f"fix step {fix_id} added, run step-run")
 
 

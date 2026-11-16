@@ -3,7 +3,24 @@ import shlex
 import subprocess
 
 from tools import build_wiki_bundle, check_encoding, docs_lint, memory_lint, progress, provider
-from tools._lib import PROJECT_FILE, ROOT, Fail, Problems, active_plan, any_match, load_project, main, open_milestone, run as shell
+from tools._lib import (
+    DRAFT_ONLY,
+    PROJECT_FILE,
+    ROOT,
+    TOOL_COMMIT,
+    TOOL_OWNED,
+    Fail,
+    Problems,
+    active_plan,
+    active_plans,
+    any_match,
+    git_ok,
+    in_worktree,
+    load_project,
+    main,
+    open_milestone,
+    run as shell,
+)
 
 
 def quote(targets):
@@ -43,10 +60,15 @@ def commit_order_errors():
     roots = [root.rstrip("/") + "/" for entry in load_project().get("language", []) for root in entry["source"] + entry["tests"]]
     if code != 0 or not any(name.startswith(tuple(roots)) for name in staged):
         return []
+    if os.environ.get(TOOL_COMMIT):
+        return []
     try:
         plan = active_plan()
+        waiting = active_plans()
     except Fail:
         return []
+    if not in_worktree() and waiting:
+        return ["a source or test change belongs to a step: make it in the worktree of its plan"]
     if not plan or any(row["State"] == "in progress" for row in plan["progress"]):
         return []
     last = Problems(plan).last(("step started", "plan reviewed"))
@@ -55,6 +77,22 @@ def commit_order_errors():
     milestone = open_milestone()
     step = progress.next_step(plan, milestone) if milestone else None
     return [f"start the step first: python -m tools.step_close start {step or '<step>'}"]
+
+
+def owner_errors():
+    """The staged files that only a tool commits. A tool sets the variable `TOOL_COMMIT` for its own commit."""
+    if os.environ.get(TOOL_COMMIT):
+        return []
+    code, output = shell(["git", "diff", "--cached", "--name-only"])
+    owned = []
+    for name in output.split() if code == 0 else []:
+        # a milestone file and a plan file belong to a tool from their first commit on
+        draft = any_match(name, DRAFT_ONLY) and git_ok("cat-file", "-e", f"HEAD:{name}")
+        if any_match(name, TOOL_OWNED) or draft:
+            owned.append(name)
+    if not owned:
+        return []
+    return ["only a tool commits these files, undo the change and use the tool of the file: " + " ".join(owned)]
 
 
 def touches(files, patterns):
@@ -88,6 +126,8 @@ def run(args):
         checks.append(("progress", lambda: (progress.check_errors(), [])))
     if files is None:
         checks.append(("commit order", lambda: (commit_order_errors(), [])))
+    if staged:
+        checks.append(("tool files", lambda: (owner_errors(), [])))
     failed = False
     for name, function in checks:
         try:

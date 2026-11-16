@@ -1,7 +1,7 @@
 import re
 import tomllib
 
-from tools._lib import DOCS, PROJECT_FILE, ROOT, active_plan, branch, commit, fail, git_ok, main, merging, read, read_table, tool
+from tools._lib import DOCS, PROJECT_FILE, ROOT, active_plans, branch, commit, fail, git, git_ok, main, merging, read, read_table, tool
 
 REQUIRED = ["product_terms", "start_version", "main_branch", "ci", "test_suite", "test_command", "test_support"]
 LANGUAGE = ["name", "extensions", "source", "tests", "format", "lint"]
@@ -26,8 +26,6 @@ def errors():
         found.append("tools/project.toml: start_version must have the form 0.0.0")
     if "dependency_source" in project and not isinstance(project["dependency_source"], str):
         found.append("tools/project.toml: dependency_source must be one folder")
-    if "{name}" not in project["test_command"]:
-        found.append("tools/project.toml: test_command must hold {name}")
     languages = project.get("language")
     if not isinstance(languages, list) or not languages:
         found.append("tools/project.toml: one [[language]] entry is necessary")
@@ -36,6 +34,11 @@ def errors():
         for key in LANGUAGE:
             if key not in entry:
                 found.append(f"tools/project.toml: [[language]] {entry.get('name', '')}: the key '{key}' is missing")
+    found += folder_errors(project, languages)
+    if "{name}" not in project["test_command"] and "{names}" not in project["test_command"]:
+        found.append("tools/project.toml: test_command must hold {name} or {names}")
+    if "test_report" in project and not isinstance(project["test_report"], str):
+        found.append("tools/project.toml: test_report must be the path of one report file")
     if not all(isinstance(value, str) for value in project.get("commands", {}).values()):
         found.append("tools/project.toml: each entry of [commands] must be one command line")
     if project["ci"] != "none" and not (ROOT / project["ci"]).is_file():
@@ -57,13 +60,32 @@ def errors():
     return found
 
 
+def folder_errors(project, languages):
+    """The bound folders that do not exist. A project without a file of its languages has no folder yet."""
+    code = False
+    extensions = tuple(extension for entry in languages for extension in entry.get("extensions", []))
+    if extensions and git_ok("rev-parse", "--is-inside-work-tree"):
+        code = any(name.endswith(extensions) for name in git("ls-files").splitlines())
+    if not code:
+        return []
+    found = []
+    for entry in languages:
+        for key in ("source", "tests"):
+            for folder in entry.get(key, []):
+                if not (ROOT / folder).is_dir():
+                    found.append(f"tools/project.toml: [[language]] {entry.get('name', '')}: the {key} folder {folder} does not exist")
+    if not (ROOT / str(project["test_support"])).is_dir():
+        found.append(f"tools/project.toml: the test_support folder {project['test_support']} does not exist")
+    return found
+
+
 def bind(kind):
     initialized = git_ok("cat-file", "-e", "HEAD:tools/project.toml")
     if kind == "init" and initialized:
         fail("the project is initialized, use project-update")
     if kind == "update" and not initialized:
         fail("not initialized, run project-init")
-    if kind == "update" and active_plan():
+    if kind == "update" and active_plans():
         fail("a plan is active, close it before project-update")
     found = errors()
     if found:

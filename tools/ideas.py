@@ -3,7 +3,7 @@
 import re
 from datetime import datetime
 
-from tools._lib import PLANS, commit, fail, git, main, read, read_table, words, write, write_table
+from tools._lib import PLANS, commit, fail, git, main, read, read_table, require_main, words, write, write_table
 
 IDEAS = PLANS / "IDEAS.md"
 IDEAS_HEADER = ["ID", "Time", "Source", "Idea"]
@@ -60,6 +60,7 @@ def remove(ids, reason):
 
 
 def run(args):
+    require_main()
     if len(args) == 3 and args[0] == "add":
         add(args[1], args[2])
     elif len(args) >= 3 and args[0] == "remove":

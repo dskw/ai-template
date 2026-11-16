@@ -8,8 +8,10 @@ from tools._lib import (
     MILESTONES,
     PLANS,
     Problems,
-    active_plan,
+    active_plans,
     ask,
+    git_ok,
+    require_main,
     branch,
     commit,
     current_version,
@@ -67,6 +69,7 @@ def check(args, answer):
             problems = Problems(done_plan(milestone, row["ID"]))
             problems.record(MANUAL[0] if passed else MANUAL[1], row["ID"])
             problems.save()
+            commit(f"Manual check recorded: {milestone['id']} {row['ID']}", [problems.path], verify=False)
         else:
             passed = test.execute(kind, name)[0] == 0
         print(f"{row['ID']} {row['Acceptance']}: {'pass' if passed else 'fail'}")
@@ -126,7 +129,8 @@ def release(milestone):
     version = released(milestone["id"])
     if version:
         return version
-    done = [row for row in milestone["features"] if row["State"] == "done"]
+    # a refactor changes no behavior, so it gives no changelog line and no version
+    done = [row for row in milestone["features"] if row["State"] == "done" and row["Type"] != "refactor"]
     bugs = fixed_bugs(milestone)
     if not done and not bugs:
         return None
@@ -218,6 +222,10 @@ def merge():
         message += "\n\nConflicts resolved in:\n" + read(conflicts_file)
         conflicts_file.unlink()
     git("commit", "-m", message)
+    # the tag keeps the commits of the milestone branch that the archived plans name
+    tag = "milestone/" + name.split("/", 1)[1].split("-", 1)[0]
+    if not git_ok("rev-parse", "--verify", "--quiet", f"refs/tags/{tag}"):
+        git("tag", tag, name)
     git("branch", "-D", name)
     marker.unlink()
     print(f"merged {name} into {main_branch} as one commit")
@@ -244,8 +252,8 @@ def migrate(new_id):
     new = find_milestone(new_id)
     if old and old["id"] != new_id:
         require_branch(milestone_branch(old))
-        if active_plan():
-            fail(f"plan {active_plan()['id']} is active, close it first")
+        if active_plans():
+            fail(f"plan {active_plans()[0]['id']} is active, close it first")
         if new["meta"]["status"] != "draft":
             fail(f"{new['rel']} must have status draft")
         moving = [row for row in old["features"] if row["State"] in ("open", "in progress")]
@@ -279,6 +287,7 @@ def migrate(new_id):
 
 def run(args):
     answer = take_option(args, "--answer")
+    require_main()
     if not args:
         return close()
     if args[0] == "check":
