@@ -442,6 +442,23 @@ class Bindings(unittest.TestCase):
             repo.tool("dependency", "add", "A step adds state", "Carry it", "TEST state passes", "M001")
         self.assertIn("maximum of 9", repo.tool("dependency", "add", "A step adds state", "Carry it", "TEST state passes", "M001", fails=True))
 
+    def test_wiki_structure(self):
+        repo = self.repo
+        repo.tool("build_wiki_bundle")
+        repo.tool("build_wiki_bundle", "check")
+        page = ["# Broken", "", "## What it does", "Nothing.", "", "[Gone](gone.md)", ""]
+        repo.write("docs/wiki/systems/broken.md", "\n".join(page))
+        repo.tool("build_wiki_bundle")
+        output = repo.tool("build_wiki_bundle", "check", fails=True)
+        self.assertIn("the sidebar must list systems/broken.md once", output)
+        self.assertIn("the page map has no row for systems/broken.md", output)
+        self.assertIn("the section 'Gotchas' is missing", output)
+        self.assertIn("the link gone.md names no page", output)
+        (repo.root / "docs/wiki/systems/broken.md").unlink()
+        repo.tool("build_wiki_bundle")
+        self.assertIn('href="assets/theme.css"', repo.read("docs/wiki/index.html"))
+        self.assertTrue((repo.root / "docs/wiki/assets/theme.css").is_file())
+
     def test_ask_rule_for_the_answer_of_the_user(self):
         self.assertIn('"Bash(* --answer *)"', self.repo.read(".claude/settings.json"))
 

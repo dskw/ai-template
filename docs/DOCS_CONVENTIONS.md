@@ -71,6 +71,10 @@ The docs lint covers `docs/**`, `AGENTS.md`, `.agents/**` and `CHANGELOG.md`. It
 /docs/plans/archive/                           (closed plans)
 /docs/plans/IDEAS.md                           (ideas for later milestones)
 /docs/wiki/                                    (developer wiki, project content only)
+/docs/wiki/README.md                           (overview of the product with the page map)
+/docs/wiki/_sidebar.md                         (navigation: each page once under its group)
+/docs/wiki/[GROUP]/[PAGE].md                   (one page; the groups are start, architecture, systems, working and those of the project)
+/docs/wiki/assets/                             (generated bundle with the dark theme; no page lives here)
 /CHANGELOG.md                                  (versions, written by tools.milestone_close)
 /DEPLOYMENT.md                                 (deployed version and compatible paths, written by the user)
 ```
@@ -648,10 +652,23 @@ Index line: `- [feedback] MEM-use-pnpm: Use pnpm, not npm`
 |---|---|
 | D138 | The wiki describes the product: architecture, subsystems, data, and the build, run and debug procedures. |
 | D139 | The wiki holds nothing about the AI setup: no agent, skill, hook, provider, gate, plan, memory or tool. |
-| D140 | A wiki page explains with a Mermaid diagram first and text second. |
+| D140 | A page of a system or of the architecture starts with one Mermaid diagram. The text follows it. |
+| D230 | The wiki has four default groups, each in its own folder: `start/`, `architecture/`, `systems/` and `working/`. |
+| D231 | `start/` holds `setup.md` and `repository-tour.md`. `architecture/` holds `overview.md` and one page per further subject of the architecture. |
+| D232 | `systems/` holds one page per system of the product. `working/` holds `build-and-run.md`, `testing.md` and one page per recurring task. |
+| D233 | A project adds groups for its domain, for example for its content and for its tuning values. No group uses the folder `assets/`. |
+| D234 | A system page has these sections in this order: `What it does`, `How it works`, `Where the code is`, `How to change or extend it`, `Gotchas`. |
+| D235 | `Where the code is` is a table of roles and paths. `How to change or extend it` has one task per paragraph, with its steps. |
+| D236 | `README.md` is the overview: what the product does, its parts, its principles, its core words and the page map. |
+| D237 | The page map is a table with one row per page and what the page holds. It is the specification of the wiki of the project. |
+| D238 | `_sidebar.md` lists each page once under its group. Its paths start at the root of the wiki, with `/`. |
+| D239 | A value that a developer tunes stands in a table with its name in the code and its file. |
+| D240 | A change goes to the page that the page map names. A new system gets a new page, a row in the page map and a line in the sidebar. |
+| D241 | The wiki uses the dark theme `theme.css` of the tools. A project changes the look through the variables of that file. |
 | D141 | A wiki page uses relative links. |
 | D142 | Agents keep the wiki up to date. Never use the wiki as a source for a decision. |
 | D143 | `python -m tools.build_wiki_bundle` writes `docs/wiki/index.html` and `docs/wiki/assets/`. |
+| D242 | `python -m tools.build_wiki_bundle check` fails for a page outside the sidebar or the page map. It fails too for a system page without a section of its form, and for a link that names no page. |
 
 Open `docs/wiki/index.html` in a browser, or run `python -m http.server 8000 --directory docs/wiki`.
 

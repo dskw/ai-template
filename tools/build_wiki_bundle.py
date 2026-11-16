@@ -17,6 +17,8 @@ LIBRARIES = {
     "docsify-mermaid.js": ("docsify-mermaid@2.0.1/dist/docsify-mermaid.js", "4850a5afd73684cd0b7d399f63aa71003cff754f0cdfc00de92427d5fe03b8c7"),
 }
 MERMAID = re.compile(r"^```mermaid\n(.*?)^```", re.M | re.S)
+# the files of tools/wiki that the build copies into the wiki: the loader, the page and the dark theme
+SUPPORT_FILES = (("offline.js", ASSETS / "offline.js"), ("theme.css", ASSETS / "theme.css"), ("index.html", WIKI / "index.html"))
 
 
 def pages():
@@ -44,12 +46,59 @@ def build():
     for name in LIBRARIES:
         if not (ASSETS / name).is_file():
             download(name)
-    for name, target in (("offline.js", ASSETS / "offline.js"), ("index.html", WIKI / "index.html")):
+    for name, target in SUPPORT_FILES:
         if not target.exists() or read(target) != read(SUPPORT / name):
             write(target, read(SUPPORT / name))
     if not (ASSETS / "pages.js").exists() or read(ASSETS / "pages.js") != pages_text():
         write(ASSETS / "pages.js", pages_text())
     print("wiki bundle written")
+
+
+SYSTEM_SECTIONS = ("What it does", "How it works", "Where the code is", "How to change or extend it", "Gotchas")
+LINK = re.compile(r"\]\(([^)#\s]+\.md)(?:#[^)]*)?\)")
+
+
+def structure_errors():
+    """The errors of the wiki structure: the sidebar and the page map list each page, each system page has the
+    sections of its form in order, and each link to a page resolves."""
+    texts = pages()
+    names = sorted(name for name in texts if name != "_sidebar.md")
+    errors = []
+    listed = LINK.findall(texts.get("_sidebar.md", ""))
+    for link in listed:
+        if not link.startswith("/"):
+            errors.append(f"docs/wiki/_sidebar.md: the path {link} must start at the root of the wiki, as /{link}")
+    listed = [link.lstrip("/") for link in listed]
+    for name in names:
+        if listed.count(name) != 1:
+            errors.append(f"docs/wiki/_sidebar.md: the sidebar must list {name} once")
+    errors += [f"docs/wiki/_sidebar.md: the page {link} does not exist" for link in listed if link not in texts]
+    mapped = LINK.findall(texts.get("README.md", ""))
+    for name in names:
+        if name != "README.md" and name not in mapped:
+            errors.append(f"docs/wiki/README.md: the page map has no row for {name}")
+    for name in names:
+        folder = name.rsplit("/", 1)[0] + "/" if "/" in name else ""
+        for link in LINK.findall(texts[name]):
+            target = link.lstrip("/") if link.startswith("/") else folder + link
+            parts = []
+            for part in target.split("/"):
+                if part == "..":
+                    parts = parts[:-1]
+                elif part != ".":
+                    parts.append(part)
+            if "/".join(parts) not in texts:
+                errors.append(f"docs/wiki/{name}: the link {link} names no page")
+        if not name.startswith("systems/"):
+            continue
+        headings = [line[3:].strip() for line in texts[name].split("\n") if line.startswith("## ")]
+        found = [heading for heading in headings if heading in SYSTEM_SECTIONS]
+        for section in SYSTEM_SECTIONS:
+            if section not in found:
+                errors.append(f"docs/wiki/{name}: the section '{section}' is missing")
+        if len(found) == len(SYSTEM_SECTIONS) and tuple(found) != SYSTEM_SECTIONS:
+            errors.append(f"docs/wiki/{name}: the sections must stand in the order {', '.join(SYSTEM_SECTIONS)}")
+    return errors
 
 
 def mermaid_errors(texts):
@@ -74,10 +123,11 @@ def check_errors():
         return [f"docs/wiki/assets/{name} is missing, run python -m tools.build_wiki_bundle" for name in missing]
     errors = []
     stale = not (ASSETS / "pages.js").exists() or read(ASSETS / "pages.js") != pages_text()
-    for name, target in (("offline.js", ASSETS / "offline.js"), ("index.html", WIKI / "index.html")):
+    for name, target in SUPPORT_FILES:
         stale = stale or not target.exists() or read(target) != read(SUPPORT / name)
     if stale:
         errors.append("the wiki bundle is older than the wiki pages, run python -m tools.build_wiki_bundle")
+    errors += structure_errors()
     return errors + mermaid_errors({f"docs/wiki/{name}": text for name, text in pages().items()})
 
 

@@ -1,0 +1,446 @@
+/* The dark theme of the wiki. It loads after the base theme and replaces its colors, fonts and spacing.
+   A project changes the look through the variables of :root, for example --accent. */
+:root {
+  color-scheme: dark;
+  --bg: #0d1117;
+  --panel: #131922;
+  --panel-raised: #1a222d;
+  --border: #263140;
+  --border-soft: #1d2632;
+  --text: #cdd6e1;
+  --muted: #8593a5;
+  --heading: #f1f5f9;
+  --accent: #58c4f6;
+  --accent-soft: rgba(88, 196, 246, 0.12);
+  --code: #f2b872;
+  --code-bg: #171e28;
+  --font: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", "Cascadia Code", "SF Mono", Consolas, "Liberation Mono", monospace;
+  --theme-color: var(--accent);
+}
+
+html,
+body {
+  background: var(--bg);
+}
+
+body {
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15.5px;
+  line-height: 1.65;
+  letter-spacing: 0.005em;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(88, 196, 246, 0.3);
+  color: #fff;
+}
+
+* {
+  scrollbar-color: #2b3746 transparent;
+  scrollbar-width: thin;
+}
+
+.progress {
+  background-color: var(--accent);
+}
+
+/* sidebar */
+.sidebar {
+  background: var(--panel);
+  border-right: 1px solid var(--border-soft);
+  color: var(--text);
+  padding-top: 28px;
+  width: 290px;
+}
+
+.sidebar > h1 {
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  margin: 0 0 22px;
+  padding: 0 24px;
+  text-align: left;
+}
+
+.sidebar > h1 a,
+.sidebar > h1 .app-name-link {
+  color: var(--heading);
+}
+
+.sidebar-nav {
+  padding: 0 12px 40px;
+}
+
+.sidebar ul,
+.sidebar ul li {
+  margin: 0;
+}
+
+.sidebar ul li p {
+  margin: 0;
+}
+
+/* the name of a group */
+.sidebar-nav > ul > li > p > strong,
+.sidebar-nav > ul > li > strong {
+  color: var(--muted);
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  margin: 22px 0 6px;
+  padding: 0 12px;
+  text-transform: uppercase;
+}
+
+.sidebar-nav > ul > li:first-child > p > strong {
+  margin-top: 0;
+}
+
+.sidebar ul li ul {
+  padding-left: 0;
+}
+
+.sidebar ul li a {
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 450;
+  overflow: hidden;
+  padding: 5px 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar ul li a:hover {
+  background: var(--panel-raised);
+  color: var(--heading);
+  text-decoration: none;
+}
+
+.sidebar ul li.active > a {
+  background: var(--accent-soft);
+  border-right: 0;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* the headings of the open page below its link */
+.sidebar .app-sub-sidebar {
+  border-left: 1px solid var(--border);
+  margin: 4px 0 8px 18px;
+}
+
+.sidebar .app-sub-sidebar li::before {
+  content: none;
+}
+
+.sidebar .app-sub-sidebar li a {
+  color: var(--muted);
+  font-size: 0.82rem;
+  padding: 3px 12px;
+}
+
+.sidebar .app-sub-sidebar li.active > a {
+  background: none;
+  color: var(--accent);
+}
+
+.sidebar-toggle {
+  background: var(--panel);
+  border-radius: 0 8px 0 0;
+  width: 290px;
+}
+
+.sidebar-toggle span {
+  background-color: var(--muted);
+}
+
+body.close .sidebar-toggle {
+  background: transparent;
+  width: auto;
+}
+
+/* page */
+.content {
+  left: 290px;
+  padding-top: 40px;
+}
+
+.markdown-section {
+  color: var(--text);
+  max-width: 1040px;
+  padding: 16px 40px 80px;
+}
+
+.markdown-section h1,
+.markdown-section h2,
+.markdown-section h3,
+.markdown-section h4,
+.markdown-section strong {
+  color: var(--heading);
+}
+
+.markdown-section h1 {
+  font-size: 2.1rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin: 0 0 1.2rem;
+}
+
+.markdown-section h2 {
+  border-top: 1px solid var(--border-soft);
+  font-size: 1.4rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin: 2.6rem 0 1rem;
+  padding-top: 2rem;
+}
+
+.markdown-section h3 {
+  font-size: 1.08rem;
+  font-weight: 650;
+  margin: 1.9rem 0 0.7rem;
+}
+
+.markdown-section h1 a,
+.markdown-section h2 a,
+.markdown-section h3 a,
+.markdown-section h4 a,
+.anchor span {
+  color: inherit;
+  font-weight: inherit;
+}
+
+.markdown-section p,
+.markdown-section ul,
+.markdown-section ol {
+  line-height: 1.7;
+  margin: 0.9em 0;
+}
+
+.markdown-section li {
+  margin: 0.3em 0;
+}
+
+.markdown-section li::marker {
+  color: var(--muted);
+}
+
+.markdown-section a {
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.markdown-section a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.markdown-section em {
+  color: var(--muted);
+}
+
+.markdown-section hr {
+  border: 0;
+  border-top: 1px solid var(--border-soft);
+}
+
+.markdown-section blockquote {
+  background: var(--panel);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  color: var(--text);
+  margin: 1.5em 0;
+  padding: 2px 18px;
+}
+
+/* code */
+.markdown-section code,
+.markdown-section pre {
+  background-color: var(--code-bg);
+  font-family: var(--mono);
+}
+
+.markdown-section code {
+  border: 1px solid var(--border-soft);
+  border-radius: 5px;
+  color: var(--code);
+  font-size: 0.84em;
+  margin: 0 1px;
+  padding: 2px 6px;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.markdown-section pre {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin: 1.3em 0;
+  padding: 0 1.2rem;
+}
+
+.markdown-section pre > code {
+  background: none;
+  border: 0;
+  color: var(--text);
+  font-size: 0.84rem;
+  line-height: 1.6;
+  padding: 1.2em 0;
+  white-space: pre;
+  word-break: normal;
+}
+
+.markdown-section pre::after,
+.markdown-section output::after {
+  color: var(--muted);
+}
+
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: #6b7a8c;
+}
+
+.token.string,
+.token.attr-value,
+.token.char {
+  color: #9ad6a0;
+}
+
+.token.number,
+.token.boolean,
+.token.constant {
+  color: #f2b872;
+}
+
+.token.keyword,
+.token.function,
+.token.tag,
+.token.property,
+.token.selector {
+  color: #58c4f6;
+}
+
+.token.punctuation,
+.token.operator {
+  color: #9aa7b8;
+}
+
+/* tables */
+.markdown-section table {
+  border: 1px solid var(--border);
+  border-collapse: separate;
+  border-radius: 10px;
+  border-spacing: 0;
+  display: table;
+  font-size: 0.9rem;
+  margin: 1.4em 0;
+  overflow: hidden;
+  width: 100%;
+}
+
+.markdown-section th,
+.markdown-section td {
+  border: 0;
+  border-bottom: 1px solid var(--border-soft);
+  line-height: 1.55;
+  padding: 9px 14px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown-section th {
+  background: var(--panel-raised);
+  border-bottom: 1px solid var(--border);
+  color: var(--heading);
+  font-size: 0.74rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.markdown-section tr,
+.markdown-section tr:nth-child(2n) {
+  background-color: transparent;
+  border: 0;
+}
+
+.markdown-section tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.025);
+}
+
+.markdown-section tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.markdown-section td code {
+  white-space: nowrap;
+}
+
+/* diagrams */
+.markdown-section .mermaid {
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  margin: 1.6em 0;
+  overflow-x: auto;
+  padding: 22px 20px;
+  text-align: center;
+}
+
+/* a diagram keeps its natural size, so its text stays as large as the page text; a wide one scrolls */
+.markdown-section .mermaid svg {
+  height: auto;
+  max-width: none;
+}
+
+.markdown-section .mermaid .nodeLabel,
+.markdown-section .mermaid .edgeLabel,
+.markdown-section .mermaid text {
+  font-size: 15px;
+}
+
+.markdown-section img {
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+}
+
+@media screen and (max-width: 768px) {
+  .content {
+    left: 0;
+  }
+
+  .markdown-section {
+    padding: 16px 20px 60px;
+  }
+
+  .sidebar {
+    left: -290px;
+  }
+
+  .sidebar-toggle {
+    background: transparent;
+    width: auto;
+  }
+
+  body.close .sidebar {
+    transform: translateX(290px);
+  }
+
+  body.close .sidebar-toggle {
+    background: var(--panel);
+    width: 290px;
+  }
+
+  body.close .content {
+    transform: translateX(290px);
+  }
+}

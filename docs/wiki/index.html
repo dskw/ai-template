@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <title>Developer wiki</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
 <link rel="stylesheet" href="assets/vue.css">
+<link rel="stylesheet" href="assets/theme.css">
 </head>
 <body>
 <div id="app"></div>
@@ -15,7 +17,58 @@ window.$docsify = { name: "Developer wiki", loadSidebar: true, subMaxLevel: 2, r
 <script src="assets/offline.js"></script>
 <script src="assets/mermaid.min.js"></script>
 <script>
-mermaid.initialize({ startOnLoad: false });
+mermaid.initialize({
+  startOnLoad: false,
+  theme: "base",
+  flowchart: { useMaxWidth: false, nodeSpacing: 28, rankSpacing: 44, padding: 14 },
+  sequence: { useMaxWidth: false, actorMargin: 40, messageMargin: 34, boxMargin: 8 },
+  state: { useMaxWidth: false },
+  themeVariables: {
+    darkMode: true,
+    background: "#131922",
+    fontFamily: '"Inter", "Segoe UI", system-ui, sans-serif',
+    fontSize: "16px",
+    primaryColor: "#1a222d",
+    primaryTextColor: "#cdd6e1",
+    primaryBorderColor: "#3a4a5e",
+    secondaryColor: "#172433",
+    secondaryTextColor: "#cdd6e1",
+    secondaryBorderColor: "#2f4257",
+    tertiaryColor: "#151c26",
+    tertiaryTextColor: "#cdd6e1",
+    tertiaryBorderColor: "#263140",
+    lineColor: "#6f8196",
+    textColor: "#cdd6e1",
+    mainBkg: "#1a222d",
+    nodeBorder: "#3a4a5e",
+    clusterBkg: "#151c26",
+    clusterBorder: "#263140",
+    titleColor: "#f1f5f9",
+    edgeLabelBackground: "#131922",
+    actorBkg: "#1a222d",
+    actorBorder: "#3a4a5e",
+    actorTextColor: "#f1f5f9",
+    actorLineColor: "#3a4a5e",
+    signalColor: "#8fa2b8",
+    signalTextColor: "#cdd6e1",
+    labelBoxBkgColor: "#172433",
+    labelBoxBorderColor: "#2f4257",
+    labelTextColor: "#58c4f6",
+    loopTextColor: "#8fa2b8",
+    noteBkgColor: "#22303f",
+    noteBorderColor: "#3a4a5e",
+    noteTextColor: "#cdd6e1",
+    activationBkgColor: "#22303f",
+    activationBorderColor: "#58c4f6",
+    sequenceNumberColor: "#0d1117",
+    labelColor: "#cdd6e1",
+    altBackground: "#151c26",
+    stateLabelColor: "#cdd6e1",
+    transitionColor: "#6f8196",
+    transitionLabelColor: "#8fa2b8",
+    specialStateColor: "#58c4f6"
+  }
+});
 </script>
 <script src="assets/docsify-mermaid.js"></script>
 <script src="assets/docsify.min.js"></script>

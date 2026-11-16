@@ -32,6 +32,7 @@ The procedure and the formats are in `docs/DOCS_CONVENTIONS.md`, section Project
 | 7 | Does the project have a CI pipeline? | single choice | None, the project lives on the local machine. A pipeline on the host that the user names. |
 | 8 | Which MCP servers? | multiple select | The suggested servers. None. |
 | 9 | Where is the source of the installed dependencies? | single choice | The derived folder of the stack. None. |
+| 10 | Which groups of its domain does the wiki need? | multiple select | The derived groups, for example content and tuning values. None. |
 
 Ask question 1 only when `docs/design/` holds no document.
 
@@ -54,6 +55,9 @@ Prepare these writes. Do not write a file before the confirmation.
 8. The pipeline file that runs `python -m tools.check` and `python -m tools.test`, only when the user named a pipeline.
 9. The rows of the Non-ASCII allowlist in `docs/CODE_CONVENTIONS.md` that the stack needs, for example localization files.
 10. `.agents/mcp.yaml` with the approved servers. Write names of environment variables, never a value.
+11. The overview `docs/wiki/README.md` in the form of the wiki rules, with the product, its parts and the page map.
+    The page map has one row per page of the default groups and one row per planned page of each group of question 10.
+12. One page per row of the page map with its headings, and `docs/wiki/_sidebar.md` with each page under its group.
 
 ## Confirmation
 1. Show the user a summary of all writes.

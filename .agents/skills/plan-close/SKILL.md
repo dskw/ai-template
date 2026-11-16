@@ -9,7 +9,7 @@ The rules are in `docs/DOCS_CONVENTIONS.md`, sections Plan close, Tuning and Gat
 ## Part 1: in the worktree of the plan
 1. Run `python -m tools.progress status`. Continue only when it prints that no step is open.
 2. Run `python -m tools.plan_close sync`. For a conflict, resolve the files, run `git add` and run the command again.
-3. Start the `implementor` agent with the plan folder and the task to compare the changes of the plan with the pages in `docs/wiki/`. It updates each page that the changes make wrong or incomplete, and commits.
+3. Start the `implementor` agent with the plan folder and the task to compare the changes of the plan with the pages in `docs/wiki/`. It reads the page map of the overview first and updates each page that the changes make wrong or incomplete. A change goes into the section of the page form that fits it. A new system gets a new page, a row in the page map and a line in the sidebar. A changed tuning value changes its table. The agent commits.
 4. Run `review-plan` when the plan changed a source or a test file. A plan without such a change needs no plan review.
 5. Tell the user that the plan is ready for the merge in the main repository.
 
