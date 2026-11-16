@@ -4,7 +4,7 @@ import tempfile
 import xml.etree.ElementTree as ElementTree
 from pathlib import Path
 
-from tools._lib import ROOT, commit, fail, git, load_project, main, progress_row, read, require_plan, run as shell, take_option, write
+from tools._lib import BUILTIN_COMMANDS, ROOT, commit, fail, git, load_project, main, progress_row, read, require_plan, run as shell, take_option, write
 
 # the lines of output that the tool prints per failed test, and for a failed run without a report file
 FAILURE_LINES = 60
@@ -112,7 +112,7 @@ def execute(kind, name="", plan=None, step_id=None):
         else:
             commands = [template.replace("{name}", item) for item in names]
     else:
-        table = project.get("commands", {})
+        table = {**BUILTIN_COMMANDS, **project.get("commands", {})}
         if names[0] not in table:
             fail(f"tools/project.toml: the command '{names[0]}' is not in [commands]")
         commands, label, report = [table[names[0]]], names[0], None

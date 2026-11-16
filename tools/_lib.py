@@ -40,6 +40,10 @@ MILESTONE_HEADER = ["Milestone", "Features", "Done", "Bugs", "Status"]
 DEPENDENCY_HEADER = ["ID", "Trigger", "Action", "Validation"]
 DEPENDENCY_ID = re.compile(r"^DEP-\d{2}$")
 PLAN_TYPES = ("feature", "fix", "refactor")
+# a step with this verification is a research step: it adds a research file and changes no source or test file
+RESEARCH_CHECK = "COMMAND research_check passes"
+# the commands that each project has without a row in its bindings
+BUILTIN_COMMANDS = {"research_check": "python -m tools.research check"}
 FEATURE_TYPES = ("new", "update", "refactor")
 
 # the files that a generator writes; an agent edits the source

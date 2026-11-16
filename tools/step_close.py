@@ -4,6 +4,9 @@ from tools import progress, test
 from tools._lib import (
     BUG_ID,
     FEATURE_ID,
+    FIX_HEADER,
+    RESEARCH_CHECK,
+    STEP_HEADER,
     Problems,
     all_steps,
     approval_errors,
@@ -14,6 +17,7 @@ from tools._lib import (
     find_step,
     git,
     has_commit,
+    load_project,
     main,
     next_id,
     MAX_ROUNDS,
@@ -33,6 +37,7 @@ from tools._lib import (
     take_option,
     tool,
     words,
+    write_table,
 )
 from tools.approve import step_base
 
@@ -162,6 +167,36 @@ def step_rows(problems, step_id):
     return [row for row in problems.rows if row["Step"] == step_id]
 
 
+def research_errors(step_id, base):
+    """The errors of a research step: it adds one or more research files and changes no source or test file."""
+    changed = git("diff", "--name-only", base).splitlines()
+    roots = [root.rstrip("/") + "/" for entry in load_project().get("language", []) for root in entry["source"] + entry["tests"]]
+    code = [name for name in changed if name.startswith(tuple(roots))]
+    errors = []
+    if code:
+        errors.append(f"the research step {step_id} changed source or test files: {' '.join(code)}")
+    if not git("diff", "--name-only", "--diff-filter=A", base, "--", "docs/research").splitlines():
+        errors.append(f"the research step {step_id} added no research file, run research-run")
+    return errors
+
+
+def set_text(step_id, text):
+    """Writes the new text of an open step, after the user approved the change that a research result needs."""
+    plan, milestone, problems, row = context(step_id)
+    if row["State"] != "open":
+        fail(f"step {step_id} has state {row['State']}, only an open step takes a new text")
+    text = " ".join(text.split())
+    if not 1 <= words(text) <= 20 or "|" in text:
+        fail("the step text must have 1 to 20 words and no '|'")
+    step = find_step(plan, step_id)
+    step["Text"] = text
+    heading, header, rows = ("Fix steps", FIX_HEADER, plan["fixes"]) if step in plan["fixes"] else ("Steps", STEP_HEADER, plan["steps"])
+    plan["text"] = write_table(plan["text"], heading, header, rows, plan["rel"])
+    save_plan(plan)
+    commit(f"Step changed: {plan['id']} {step_id}", [plan["dir"]], verify=False)
+    print(f"step {step_id} has the new text")
+
+
 def close(step_id, answer, by=None):
     plan, milestone, problems, row = context(step_id)
     subject = f"Step closed: {plan['id']} {step_id}"
@@ -185,6 +220,8 @@ def close(step_id, answer, by=None):
         errors.append("the step has no review, run review-step")
     errors += problem_errors(step_rows(problems, step_id), STEP_HINT, count)
     errors += approval_errors(plan, problems, step_id, step_base(problems, step_id))
+    if step["Verification"] == RESEARCH_CHECK:
+        errors += research_errors(step_id, step_base(problems, step_id))
     if errors:
         fail("step gate:\n" + "\n".join(errors))
     kind, name = parse_check(step["Verification"])
@@ -301,12 +338,15 @@ def run(args):
         unblock(*rest)
     elif command == "add-fix" and len(rest) == 2:
         add_fix(*rest)
+    elif command == "set-text" and len(rest) == 2:
+        set_text(*rest)
     else:
         fail(
             "usage: python -m tools.step_close <start|review|revert|block> <step>"
             " | close <step> [--answer yes|no] [--by agent]"
             ' | unblock <step> "<user answer>"'
             " | add-fix <problem> <step>"
+            ' | set-text <step> "<text>"'
         )
 
 

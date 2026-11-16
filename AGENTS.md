@@ -15,13 +15,14 @@ Not initialized. Run the `project-init` skill. The design documents are in `docs
 Run `python -m tools.progress status` at session start when no hook injected its output. In the worktree of a plan, continue with the step it prints. Never start a different step. In the main repository it prints each active plan with its worktree. When it prints `bugfix phase`, start a fix plan with `plan-create`.
 
 ## Skills
-- The main session orchestrates: it runs the tools, asks the user and reads the agent reports. The `implementor` agent writes the code and the `reviewer` agent reviews it.
+- The main session orchestrates: it runs the tools, asks the user and reads the agent reports. The `implementor` agent writes the code, the `reviewer` agent reviews it and the `researcher` agent writes a research file.
 - `project-init`: binds the setup to the project. Use it once, before the first milestone.
 - `project-update`: changes a project binding. Use it for a new language, tool, pipeline or MCP server.
 - `milestone-propose`: proposes the next milestone. Use it when the user asks for suggestions.
 - `milestone-create`: writes a milestone. Use it when no milestone is open.
 - `plan-create`: writes a plan for open features, for bugs or for a refactor, and creates its worktree. Use it in the main repository.
 - `step-run`: implements the step that the status prints. Use it in the worktree of the plan.
+- `research-run`: answers one open question with a research file. `plan-create` and a research step call it.
 - `review-step`: reviews the step in progress. `step-run` calls it.
 - `plan-close`: closes a plan when no step is open, first in its worktree, then in the main repository.
 - `review-plan`: reviews the whole plan. `plan-close` calls it.

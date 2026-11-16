@@ -480,3 +480,37 @@ class Rounds(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Research(unittest.TestCase):
+    def test_research_file_and_research_step(self):
+        repo = Scratch()
+        self.addCleanup(repo.remove)
+        repo.milestone()
+        folder, plan = repo.plan("feature", "alpha", "F01", "alpha")
+        repo.edit(plan, r"\| S01 \| F01 \| Add the part alpha \| TEST alpha passes \|", "| S01 | F01 | Which way builds the part alpha | COMMAND research_check passes |")
+        repo.add_row(plan, "Steps", "| S02 | F01 | Add the part alpha | TEST alpha passes | none |")
+        repo.edit(plan, r"## Verification\n", "## Verification\n- COMMAND research_check passes\n")
+        plan_id, worktree = repo.commit_plan(folder)
+        repo.tool("step_close", "start", "S01", where=worktree)
+        repo.tool("step_close", "review", "S01", where=worktree)
+        self.assertIn("added no research file", repo.tool("step_close", "close", "S01", where=worktree, fails=True))
+        self.assertIn("docs/research/R001-alpha-way.md", repo.tool("research", "start", "alpha-way", where=worktree))
+        output = repo.tool("research", "check", "R001", where=worktree, fails=True)
+        self.assertIn("must hold the date and the scope", output)
+        self.assertIn("the section ## Sources is empty", output)
+        name = "docs/research/R001-alpha-way.md"
+        text = repo.read(name, worktree).replace("Scope:", "Scope: the ways to build the part alpha.")
+        repo.write(name, text.replace("## Sources\n", "Any shape fits here.\n\n## Recommendation\nBuild it the short way.\n\n## Sources\n- The design.\n"), worktree)
+        self.assertIn("committed", repo.tool("research", "commit", "R001", where=worktree))
+        repo.write("src/extra.fk", "part\n", worktree)
+        repo.git("add", "-A", where=worktree)
+        repo.git("commit", "-q", "-m", "Code in a research step", where=worktree)
+        self.assertIn("changed source or test files: src/extra.fk", repo.tool("step_close", "close", "S01", where=worktree, fails=True))
+        repo.git("rm", "-q", "src/extra.fk", where=worktree)
+        repo.git("commit", "-q", "-m", "Remove the code", where=worktree)
+        self.assertIn("Step closed", repo.tool("step_close", "close", "S01", where=worktree))
+        repo.tool("step_close", "set-text", "S02", "Add the part alpha the short way of R001", where=worktree)
+        self.assertIn("| S02 | F01 | Add the part alpha the short way of R001 |", repo.read(plan, worktree))
+        self.assertIn("only an open step", repo.tool("step_close", "set-text", "S01", "A new question", where=worktree, fails=True))
+        self.assertIn("R002", repo.tool("research", "start", "second", where=worktree))

@@ -8,6 +8,7 @@ permission:
   grep: allow
   list: allow
   read: allow
+  task: deny
   webfetch: deny
   websearch: deny
 ---

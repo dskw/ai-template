@@ -13,7 +13,7 @@ The rules of a milestone are in `docs/DOCS_CONVENTIONS.md`, section Milestone fi
 4. List the mechanics that the code has now, from the done features, not from the design alone.
 5. Write two or three proposals. Each proposal has a goal of one or two sentences, three to six features and the ideas that it takes in by id. Each feature builds on a done feature or mechanic and names it.
 6. Keep each proposal small: one connected result that the user can see and play.
-7. Name the design gaps that a proposal needs to close before planning.
+7. Name the design gaps that a proposal needs to close before planning. Mark a gap as `needs research` when it meets a trigger of the section Research of `plan-create`.
 8. Show the proposals to the user and ask which one to plan.
 9. When the user chooses a proposal, run `milestone-create` with it. Pass the idea ids of the proposal.
 

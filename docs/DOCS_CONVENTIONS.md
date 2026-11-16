@@ -16,7 +16,7 @@ The writing rules follow ASD-STE100, Simplified Technical English.
 | D07 | A code identifier follows the naming rules of its language, not these rules. |
 | D08 | A document shows a procedure with a Mermaid diagram. A diagram shows one procedure with its decision points. |
 | D09 | A conventions file states rules only. Each rule has an id. |
-| D10 | Research in `docs/research/` is input only. Text copied from it must pass the lint. |
+| D10 | Research in `docs/research/` is input only. Text copied from it must pass the lint. The section Research file holds its frame. |
 
 `python -m tools.docs_lint` runs Vale with the style in `tools/vale/styles/Project/`. Passive voice is a warning. The other checks fail. The lint does not check the text inside a code block. It fails when a Mermaid block does not parse.
 
@@ -57,7 +57,7 @@ The docs lint covers `docs/**`, `AGENTS.md`, `.agents/**` and `CHANGELOG.md`. It
 /docs/memories/MEM-[NAME].md                   (one memory per file)
 /docs/design/                                  (design documents of the user)
 /docs/design/PROJECT.md                        (product, platforms and stack)
-/docs/research/R[NNN]-[NAME].md                (research results, input only)
+/docs/research/R[NNN]-[NAME].md                (one research file per question, input only)
 /docs/milestones/PROGRESS.md                   (one row per milestone, generated)
 /docs/milestones/M[NNN]-[NAME].md              (one milestone)
 /docs/milestones/archive/                      (closed milestones)
@@ -270,6 +270,9 @@ closed:
 | D56 | In a fix plan each bug has one step. The verification is the acceptance of the bug. |
 | D57 | Only `python -m tools.step_close add-fix` writes the `Fix steps` table. |
 | D58 | When a feature has problems with the answer `user replan` in an archived plan, write them into the step texts. |
+| D243 | A step with the verification `COMMAND research_check passes` is a research step. Its text is the question. It is the first step of its feature. |
+| D244 | A research step adds a research file and changes no source file and no test file. The step gate refuses such a change. |
+| D245 | After a research step, `python -m tools.step_close set-text` writes the new text of an open step, only after the approval of the user. |
 
 ```mermaid
 stateDiagram-v2
@@ -413,6 +416,7 @@ sequenceDiagram
 | D207 | A delegated agent reads the memory index first. It follows each memory of the types user and feedback like the main session. |
 | D188 | Tuning requests of a manual check belong to the step of the check, also when they touch an earlier step of the feature. |
 | D195 | The `implementor` agent writes the code and the documents of a step in a fresh context. The main session runs the tools and reads the reports. |
+| D246 | In a research step the `researcher` agent takes the place of the implementor. The document review of the research file is the review of the step. |
 | D194 | A step revert keeps the commits outside the step: memories, setup findings, milestone files and other plans. It names each kept commit. |
 | D186 | Start the step before the first write to a source or test folder. The pre-commit check rejects such a change while a plan is active and no step is in progress. |
 
@@ -485,7 +489,7 @@ A gate runs its checks itself. A gate failure names the missing item.
 
 | Gate | Tool | Conditions |
 |---|---|---|
-| Step | `step_close close` | The milestone tables hold the id of the step. A review exists. Each problem has an answer. No `Important` problem is open. An approval covers the protected paths. The verification, `tools.check` and each test file that the step changed pass. The evidence file exists. |
+| Step | `step_close close` | The milestone tables hold the id of the step. A review exists. Each problem has an answer. No `Important` problem is open. An approval covers the protected paths. The verification, `tools.check` and each test file that the step changed pass. The evidence file exists. A research step added a research file and changed no source or test file. |
 | Plan merge | `plan_close merge` | The worktree is clean. The plan branch holds the tip of the milestone branch. Each step is complete. Each problem has an answer. When the plan changed product code, its newest own commit is the `Review passed:` commit. Only a sync without a conflict follows it. On the merged tree, `tools.check`, the checks of the `Verification` section and each test file that the plan changed pass. |
 | Plan | `plan_close` | The work tree is clean. No source or test file changed after the `Plan merged:` commit. Each step is complete. Each problem has an answer. The tuning ran. Each extension has a decision. An approval covers the protected paths of the close. The memory lint, `tools.progress` and `tools.check` pass. |
 | Milestone | `milestone_close` | Each feature is `done` or `dropped`. The `Bugs` table is empty. Each plan is in `archive/`. Each acceptance check of a `done` feature passes. `tools.progress` and the whole suite pass. |
@@ -596,6 +600,21 @@ version: 1.12.0
 | D192 | `Idea` is one sentence of max 25 words that names what the user sees. |
 | D193 | A milestone that plans an idea removes its row with the milestone id as reason. |
 
+## Research file
+A research file answers one question before the work on a feature. The skill `research-run` writes it through the `researcher` agent.
+
+| ID | Rule |
+|---|---|
+| D247 | The file has the name `R[NNN]-[NAME].md`. Its first line is the title with the id and the subject. |
+| D248 | One line under the title holds the date and the scope of the research. |
+| D249 | The file marks each statement that the research did not verify as not verified. |
+| D250 | The file ends with a recommendation or the lessons for the project, then the section `Sources`. |
+| D251 | Each part between that frame has the shape that fits the subject. No rule prescribes a further section. |
+| D252 | `python -m tools.research check` fails only when the title, the line with date and scope or the section `Sources` is missing or empty. |
+| D253 | A recommendation that changes the design goes to the user. Only the user changes a design document. |
+| D254 | A feature needs research when a trigger of the section Research of the skill `plan-create` holds. |
+| D255 | The researcher starts max 4 sub agents per research, each on the cheapest model class, and only for searches that read. |
+
 ## Dependencies file
 `docs/DEPENDENCIES.md` holds the structural dependencies of the project.
 
@@ -696,7 +715,7 @@ Open `docs/wiki/index.html` in a browser, or run `python -m http.server 8000 --d
 
 | ID | Rule |
 |---|---|
-| D154 | `model` is `fast`, `balanced` or `strong`. `tools` is a subset of `read edit write bash grep glob web`. |
+| D154 | `model` is `fast`, `balanced` or `strong`. `tools` is a subset of `read edit write bash grep glob web agent`. The tool `agent` lets the agent start sub agents. |
 | D155 | `bash_allow` is a list of command prefixes. `edit_allow` is a list of globs. |
 | D156 | `event` is `session_start`, `pre_tool_use` or `post_tool_use`. A command has the form `python -m tools.<name>`. |
 | D157 | `matcher` is one string, or one string per provider with the keys `claude`, `codex` and `kilo`. |
@@ -752,6 +771,7 @@ Provider facts, checked against the provider documentation in November 2026. The
 | Kilo: session start | No plugin event adds text to a new session. The `AGENTS.md` instruction applies. |
 | Kilo: plugin dependencies | The plugin has none. Kilo installs its own plugin package at startup. |
 | Kilo: question tool | Not verified. Ask in text when the session has no question tool. |
+| Each provider: an agent that starts sub agents | Not verified. The tool `agent` maps to `Agent` in Claude Code and to the permission `task` in Kilo. The prompt of the agent holds the fallback. |
 
 ## Bootstrap
 `python -m tools.setup` runs once per machine and per copy of the repository.
@@ -845,7 +865,7 @@ Each tool runs as `python -m tools.<name>`. A tool without arguments prints its 
 | `milestone_create` | `start <name>`, `commit` | Creates the branch and the draft file. Validates and commits the milestone. |
 | `plan_create` | `start <feature, fix or refactor> <name>`, `reviewed`, `commit`, `worktree <plan>` | Creates the draft folder. Records a document review. Validates and commits the plan, then creates its branch and its worktree. |
 | `review_yield` | none | Counts the reviews of the archived plans per kind and round, their problems, the plans per topic and the bugs fixed later. |
-| `step_close` | `start`, `review`, `close [--answer] [--by agent]`, `revert`, `block`, `unblock`, `add-fix` | Makes each state change of a step, in the worktree of the plan. |
+| `step_close` | `start`, `review`, `close [--answer] [--by agent]`, `revert`, `block`, `unblock`, `add-fix`, `set-text <step> "<text>"` | Makes each state change of a step, in the worktree of the plan. Writes the new text of an open step. |
 | `plan_close` | In the worktree: `sync`, `reviewed`, `review-passed`, `block`, `unblock`. In the main repository: `merge <plan>`, `tuning`, `check`, `verify-bug`, none | Makes each state change of the plan close. |
 | `milestone_close` | none, `check`, `migrate <id>` | Closes, merges or migrates a milestone. |
 | `approve` | `<plan> <step or close>` | Writes an approval record of the user. |
@@ -853,6 +873,7 @@ Each tool runs as `python -m tools.<name>`. A tool without arguments prints its 
 | `dependency` | `add "<trigger>" "<action>" "<validation>" "<source>"`, `remove <id> "<reason>"` | Adds a row with the next id to `docs/DEPENDENCIES.md` and removes one in the close of a refactor plan. Commits the file. |
 | `memory_index`, `memory_lint` | none, `show`, `--strict` | Writes and checks the memory index and the entries. |
 | `ideas` | `add "<idea>" <user or agent>`, `remove <id> [<id> ...] "<reason>"` | Adds an idea with the next id and removes ideas from `docs/plans/IDEAS.md`. Commits the file. |
+| `research` | `start <name>`, `check [<id> ...]`, `commit <id>` | Starts a research file with the next id. Checks the frame of the research files. Commits one file. |
 | `check_encoding`, `fix_encoding` | none, `<files>` | Checks and repairs the encoding. |
 | `docs_lint` | none, `<files>` | Runs Vale and the project content check. |
 | `build_wiki_bundle` | none, `check` | Writes and checks the offline wiki bundle. |

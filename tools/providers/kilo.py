@@ -10,6 +10,7 @@ PERMISSIONS = {
     "grep": ["grep"],
     "glob": ["glob"],
     "web": ["webfetch", "websearch"],
+    "agent": ["task"],
 }
 EVENTS = {"pre_tool_use": "tool.execute.before", "post_tool_use": "tool.execute.after"}
 

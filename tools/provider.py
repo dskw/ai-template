@@ -10,7 +10,7 @@ from tools.providers import claude, codex, kilo
 SOURCE = ROOT / ".agents"
 MANIFEST = SOURCE / ".generated" / "manifest.json"
 MODELS = ("fast", "balanced", "strong")
-TOOLS = ("read", "edit", "write", "bash", "grep", "glob", "web")
+TOOLS = ("read", "edit", "write", "bash", "grep", "glob", "web", "agent")
 EVENTS = ("session_start", "pre_tool_use", "post_tool_use")
 PROVIDERS = ("claude", "codex", "kilo")
 OUTPUT_ROOTS = (".claude/", ".codex/", ".kilo/", "CLAUDE.md", ".mcp.json", "kilo.jsonc")

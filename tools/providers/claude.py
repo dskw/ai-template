@@ -11,6 +11,7 @@ TOOLS = {
     "grep": ["Grep"],
     "glob": ["Glob"],
     "web": ["WebFetch", "WebSearch"],
+    "agent": ["Agent"],
 }
 EVENTS = {"session_start": "SessionStart", "pre_tool_use": "PreToolUse", "post_tool_use": "PostToolUse"}
 

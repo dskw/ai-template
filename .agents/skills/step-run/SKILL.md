@@ -18,6 +18,9 @@ The rules are in `docs/DOCS_CONVENTIONS.md`, section Step execution, and in the 
 9. When a protected path changed, ask the user, and run `python -m tools.approve <plan> <step> --answer <yes|no>`.
 10. Run `python -m tools.step_close close <step>`. Fix each item that the gate names and run it again.
 
+## Research step
+A step with the verification `COMMAND research_check passes` is a research step. Run `python -m tools.step_close start <step>`, then the skill `research-run` with its section Research step of a plan. No implementor agent runs, and the step changes no source file and no test file. Then continue at step 9 of the procedure.
+
 ## Fix plan step
 The implementor writes the regression test first when the acceptance of the bug is a test. It runs the test on the code without the fix and after the fix. The evidence shows the failing run before the passing run.
 
