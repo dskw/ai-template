@@ -41,6 +41,14 @@ def evidence_runs(plan, step_id):
     return runs
 
 
+def failed_before_passed(plan, step_id, name):
+    """Whether the evidence of a step shows a failing run of the test `name` before a passing run, as a bug fix
+    needs it."""
+    exits = [code for label, code in evidence_runs(plan, step_id) if label == name]
+    failed = next((index for index, code in enumerate(exits) if code != 0), None)
+    return failed is not None and 0 in exits[failed + 1 :]
+
+
 def log_path():
     folder = ROOT / LOG_FOLDER / "test"
     folder.mkdir(parents=True, exist_ok=True)

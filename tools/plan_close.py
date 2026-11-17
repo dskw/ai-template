@@ -129,8 +129,39 @@ def check(args, answer, by=None):
             passed = test.execute(kind, name)[0] == 0
         source = " (checked by the agent on request of the user)" if by == "agent" else ""
         print(f"{item} {row['Acceptance']}: {'pass' if passed else 'fail'}{source}")
+    for name in manual_lines(plan, milestone):
+        if args and name not in args:
+            continue
+        if answer is None:
+            print(f"verification MANUAL {name}: ask the user, then run python -m tools.plan_close check {name} --answer yes|no")
+            code = 1
+            continue
+        passed = ask(f"Manual check {name} of the plan verification: did it pass?", answer)
+        problems.record("plan manual passed" if passed else "plan manual failed", name)
+        source = " (checked by the agent on request of the user)" if by == "agent" else ""
+        print(f"verification MANUAL {name}: {'pass' if passed else 'fail'}{source}")
     problems.save()
     return code
+
+
+def manual_lines(plan, milestone):
+    """The names of the manual lines of the plan verification that are no acceptance of an item of the plan. The
+    check of the item records the acceptance."""
+    acceptances = {row["Acceptance"] for item in plan["ids"] if (row := target_row(plan, milestone, item))}
+    names = []
+    for kind, name in plan_checks(plan):
+        if kind == "MANUAL" and f"MANUAL {name}" not in acceptances and name not in names:
+            names.append(name)
+    return names
+
+
+def manual_line_errors(plan, milestone, problems):
+    errors = []
+    for name in manual_lines(plan, milestone):
+        record = problems.last(("plan manual passed", "plan manual failed"), name)
+        if not record or record["type"] != "plan manual passed":
+            errors.append(f"the manual line {name} of the plan verification has no passed record, run python -m tools.plan_close check {name}")
+    return errors
 
 
 def verify_bug(bug_id):
@@ -144,9 +175,7 @@ def verify_bug(bug_id):
         print(f"{bug_id}: the acceptance check '{row['Acceptance']}' does not pass")
     elif kind == "TEST":
         step = next(step for step in plan["steps"] if step["Feature"] == bug_id)
-        exits = [code for label, code in test.evidence_runs(plan, step["Step"]) if label == name]
-        failed = next((index for index, code in enumerate(exits) if code != 0), None)
-        verified = failed is not None and 0 in exits[failed + 1 :]
+        verified = test.failed_before_passed(plan, step["Step"], name)
         if not verified:
             print(f"{bug_id}: the evidence of {step['Step']} must show a failing run of {name} before a passing run")
     if not verified:
@@ -433,6 +462,7 @@ def gate(plan, milestone, problems):
         errors.append("a source or test file changed after the merge of the plan, revert the change: " + " ".join(changed))
     errors += [f"step {step_id} is not complete" for step_id in open_steps(plan, milestone, problems)]
     errors += plan_problem_errors(problems)
+    errors += manual_line_errors(plan, milestone, problems)
     if not problems.last(("tuning done",)):
         errors.append("problems.md is not processed, run python -m tools.plan_close tuning")
     errors += extension_errors(plan)

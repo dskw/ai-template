@@ -15,6 +15,10 @@ ROOT_FOLDERS = {
     "nix", "users", "windows", "private", "volumes", "library", "applications", "system",
 }
 ALLOWED_DEVICES = {"/dev/null", "/dev/stdout", "/dev/stderr"}
+# a switch of a Windows command, for example /F, or its escaped form //c in a POSIX shell
+SWITCH = re.compile(r"^//?[A-Za-z]{1,2}$")
+# a shell loop that waits: while or until around a sleep or a file test
+WAIT_LOOP = re.compile(r"\b(?:while|until)\b.*?(?:\bsleep\b|\[\[?\s|\btest\s)", re.DOTALL)
 # a variable that names a folder outside the repository
 OUTSIDE_VARIABLES = re.compile(
     r"\$\{?(?:HOME|TEMP|TMP|TMPDIR|USERPROFILE|APPDATA|LOCALAPPDATA)\b|%(?:TEMP|TMP|USERPROFILE|APPDATA|LOCALAPPDATA|HOMEPATH)%"
@@ -50,6 +54,8 @@ def native(token):
 def is_path(token):
     if re.match(r"^[A-Za-z]:|^\\\\|^~", token):
         return True
+    if SWITCH.match(token):
+        return False
     parts = [part for part in token.split("/") if part]
     if not parts:
         return False
@@ -92,6 +98,13 @@ def run(args):
         outside = outside_paths(command)
         if outside:
             print(f"The agent {agent} works only inside the repository: {', '.join(outside)}", file=sys.stderr)
+            return 2
+        if WAIT_LOOP.search(command):
+            print(
+                f"The agent {agent} never waits in a shell loop. Run the build or the test in the foreground with the"
+                " longest timeout",
+                file=sys.stderr,
+            )
             return 2
     path = ROOT / ".agents" / "agents" / f"{agent}.md"
     if not path.exists():

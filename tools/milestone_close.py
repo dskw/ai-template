@@ -34,6 +34,7 @@ from tools._lib import (
     save_milestone,
     subjects,
     take_option,
+    tool_git,
     today,
     tool,
     write,
@@ -221,7 +222,7 @@ def merge():
                 fail(f"python -m tools.{check} fails after the conflict resolution:\n{output}")
         message += "\n\nConflicts resolved in:\n" + read(conflicts_file)
         conflicts_file.unlink()
-    git("commit", "-m", message)
+    tool_git("commit", "-m", message)
     # the tag keeps the commits of the milestone branch that the archived plans name
     tag = "milestone/" + name.split("/", 1)[1].split("-", 1)[0]
     if not git_ok("rev-parse", "--verify", "--quiet", f"refs/tags/{tag}"):

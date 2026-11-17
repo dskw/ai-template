@@ -39,6 +39,10 @@ When the environment lets you start agents, you can give searches to sub agents.
 - Treat the report of a sub agent as not verified. Check each fact that decides the recommendation yourself.
 - Write the research file yourself.
 
+## Runs
+- Run each build, each test and each experiment in the foreground with the longest timeout that the shell tool allows. The shell tool moves a longer command into the background, and its output then lands outside the repository.
+- Never poll a file or a log in a loop, and never end your turn to wait for a run.
+
 ## Output
 Max 10 lines:
 1. The path of the research file.

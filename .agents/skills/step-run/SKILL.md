@@ -23,7 +23,13 @@ Change the directory to the worktree of the plan right before each agent start. 
 A step with the verification `COMMAND research_check passes` is a research step. Run `python -m tools.step_close start <step>`, then the skill `research-run` with its section Research step of a plan. No implementor agent runs, and the step changes no source file and no test file. Then continue at step 9 of the procedure.
 
 ## Fix plan step
-The implementor writes the regression test first when the acceptance of the bug is a test. It runs the test on the code without the fix and after the fix. The evidence shows the failing run before the passing run.
+The implementor writes the regression test first when the acceptance of the bug is a test. It runs the test with the option `--step` on the code without the fix and after the fix. The evidence shows the failing run before the passing run, and the step gate refuses the close without it.
+
+## Agent that waits
+An agent can report that it waits for its own build or test run. Then read the logs of that run in the log folder of the repository and the evidence file of the step. When the run finished, send the agent a message with the result and tell it to go on. When no run is active, tell it to run the command again in the foreground.
+
+## Test that the plan did not name
+When a report names a test that the verification of the plan does not hold, ask the user. After the approval, run `python -m tools.step_close add-check "TEST <name> passes" --answer yes`.
 
 ## Work outside the step
 The implementor implements no need that the step text does not cover. It adds a row with the next id to `extensions.md` of the plan, with `Decision` and `Detail` empty.
@@ -33,10 +39,11 @@ A worktree holds no write to a shared file of the milestone. A fact for the memo
 1. For a non-breaking problem under `docs/REVIEW.md`, run `python -m tools.step_close unblock <step> "non-breaking, moved to the bug list"` and close the step. The plan close reports the problem as a bug.
 2. For a breaking problem, show the user the open problems. Ask for a new approach or an acceptance with a reason.
 3. For an acceptance, run `python -m tools.step_close unblock <step> "<reason of the user>"` and close the step.
-4. For a new approach, run `python -m tools.step_close revert <step>`. The revert keeps the commits outside the step.
-5. Continue at step 4 of the procedure with the task of a new attempt and the open problems.
-6. When the second attempt fails, run `python -m tools.step_close block <step>`. Show the user the open problems and ask how to continue.
-7. Run `python -m tools.step_close unblock <step> "<answer of the user>"`. Continue as the user decided.
+4. For a new approach, run `python -m tools.step_close revert <step>`. The revert keeps the commits outside the step. When the user approved a new step text, run `python -m tools.step_close set-text <step> "<text>"` after the revert.
+5. When the new approach needs a refactor first, add the refactor feature in the main repository with `python -m tools.progress add-feature`, then run `python -m tools.plan_close sync` in the worktree. After the approval of the user, run `python -m tools.step_close insert-refactor <feature> "<text>" "<verification>" --answer yes`. The refactor step stands before the open steps and runs first.
+6. Continue at step 4 of the procedure with the task of a new attempt and the open problems.
+7. When the second attempt fails, run `python -m tools.step_close block <step>`. Show the user the open problems and ask how to continue.
+8. Run `python -m tools.step_close unblock <step> "<answer of the user>"`. Continue as the user decided.
 
 ## Manual verification
 1. The implementor puts a package into `docs/plans/<plan>/tmp/manual-check/` and nowhere else. It holds the built application with each file that it needs, one start script per part, and a readme of max 20 lines. A milestone check package goes into the milestone package folder of `docs/DOCS_CONVENTIONS.md`.

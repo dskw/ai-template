@@ -25,10 +25,16 @@ The caller gives you:
 7. Never write a memory entry, a milestone file or a setup finding in the worktree of a plan. Add a row to `extensions.md` with the prefix `Memory:` or `Setup:` instead.
 8. Run the verification of the step with `python -m tools.test <name> --step <step>`. Add `--command` for a `COMMAND` check.
 9. Run the tests whose files you changed or added in one call: `python -m tools.test <name> [<name> ...]`. Run no other test.
-10. For a fix plan step, write the regression test first. Run it on the code without the fix, then fix the code and run it again.
-11. For a problem, decide first if its trigger exists and if the design wants the behavior. When not, write `closed <category> <reason>` into its `Answer` cell and change no code.
-12. For a fix of a problem, write `fixed <commit>` into its `Answer` cell after the commit.
-13. Commit the work with a message of your own.
+10. For a fix plan step, write the regression test first. Run it with `python -m tools.test <name> --step <step>` on the code without the fix, then fix the code and run it again the same way. The step gate needs the failing run before the passing run in the evidence.
+11. When the step adds a test that the verification of the plan does not name, report it as an open question. The main session adds its check line after the approval of the user.
+12. For a problem, decide first if its trigger exists and if the design wants the behavior. When not, write `closed <category> <reason>` into its `Answer` cell and change no code.
+13. For a fix of a problem, write `fixed <commit>` into its `Answer` cell after the commit.
+14. Commit the work with a message of your own.
+
+## Runs
+- Run each build and each test in the foreground with the longest timeout that the shell tool allows. The shell tool moves a longer command into the background, and its output then lands outside the repository.
+- Never poll a file or a log in a loop, and never end your turn to wait for a run. The test tool writes the full log into the log folder of the repository; read a result there.
+- Never start a second build while a build runs. It only waits on the build lock.
 
 ## Output
 Max 20 lines:

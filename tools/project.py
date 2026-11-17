@@ -1,7 +1,26 @@
 import re
 import tomllib
 
-from tools._lib import DOCS, PROJECT_FILE, ROOT, active_plans, branch, commit, fail, git, git_ok, main, merging, read, read_table, tool
+from tools._lib import (
+    DOCS,
+    MILESTONES,
+    PLANS,
+    PROJECT_FILE,
+    ROOT,
+    active_plans,
+    branch,
+    commit,
+    fail,
+    git,
+    git_ok,
+    main,
+    merging,
+    read,
+    read_table,
+    rel,
+    run as shell,
+    tool,
+)
 
 REQUIRED = ["product_terms", "start_version", "main_branch", "ci", "test_suite", "test_command", "test_support"]
 LANGUAGE = ["name", "extensions", "source", "tests", "format", "lint"]
@@ -79,6 +98,22 @@ def folder_errors(project, languages):
     return found
 
 
+def binding_paths():
+    """The changed files that the binding commit takes. An untracked draft of a running plan or milestone creation
+    belongs to its own tool and stays out of the commit."""
+    code, output = shell(["git", "status", "--porcelain", "--untracked-files=all"])
+    drafts = (rel(PLANS) + "/", rel(MILESTONES) + "/")
+    paths = []
+    for line in output.splitlines():
+        if len(line) <= 3:
+            continue
+        names = [name.strip('"') for name in line[3:].split(" -> ")]
+        if line.startswith("??") and names[-1].startswith(drafts):
+            continue
+        paths += names
+    return paths
+
+
 def bind(kind):
     initialized = git_ok("cat-file", "-e", "HEAD:tools/project.toml")
     if kind == "init" and initialized:
@@ -100,7 +135,8 @@ def bind(kind):
         if code != 0:
             fail(f"python -m tools.{name} failed:\n{output}")
     message = "Project initialized" if kind == "init" else "Project updated"
-    if not commit(message):
+    paths = binding_paths()
+    if not paths or not commit(message, paths):
         fail("no change to commit")
     print(message)
 

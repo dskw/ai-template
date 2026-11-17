@@ -325,7 +325,15 @@ class ParallelPlans(unittest.TestCase):
 
         # the milestone close keeps the commits of the milestone branch under a tag
         tip = repo.git("rev-parse", "HEAD")
+        # a commit hook that takes tool commits only: the squash merge on the main branch is a tool commit
+        hook = Path(repo.git("rev-parse", "--git-common-dir")) / "hooks" / "pre-commit"
+        hook = hook if hook.is_absolute() else repo.root / hook
+        repo.write(str(hook), '#!/bin/sh\n[ -n "$SETUP_TOOL_COMMIT" ] || exit 1\n')
+        hook.chmod(0o755)
         repo.tool("milestone_close")
+        hook.unlink()
+        self.assertEqual(repo.git("status", "--porcelain"), "")
+        self.assertTrue(repo.git("log", "-1", "--format=%s").startswith("Milestone closed: M001"))
         self.assertEqual(repo.git("branch", "--show-current"), "main")
         repo.git("merge-base", "--is-ancestor", tip, "milestone/M001")
         self.assertEqual(repo.git("branch", "--list", "milestone/*"), "")
@@ -491,6 +499,12 @@ class Bindings(unittest.TestCase):
         self.assertEqual(guard('grep -rn "/api/v1" src')[0], 0)
         self.assertEqual(guard("grep -n / src/main.rs")[0], 0)
         self.assertEqual(guard("git log HEAD~1")[0], 0)
+        self.assertEqual(guard("taskkill /F /IM game.exe")[0], 0)
+        self.assertEqual(guard('cmd //c "dir docs"')[0], 0)
+        self.assertEqual(guard("ls /tmp/elsewhere")[0], 2)
+        self.assertIn("never waits in a shell loop", guard("until [ -f out.log ]; do sleep 5; done")[1])
+        self.assertEqual(guard("while true; do sleep 10; done")[0], 2)
+        self.assertEqual(guard("git log --oneline")[0], 0)
         binding = f'toolchain_folders = ["{outside.as_posix()}"]\n[[language]]'
         repo.write("tools/project.toml", PROJECT.replace("[[language]]", binding))
         repo.tool("project", "check")
@@ -539,6 +553,94 @@ class RefactorFirst(unittest.TestCase):
         self.assertIn(f"Plan created: {plan_id}", repo.git("log", "-1", "--format=%s"))
 
 
+class RunningPlanChanges(unittest.TestCase):
+    """A binding change beside a plan draft, a new text after a revert, a refactor step and a check line in a running
+    plan, and a manual line of the plan verification."""
+
+    def test_binding_change_leaves_the_plan_draft_out(self):
+        repo = Scratch()
+        self.addCleanup(repo.remove)
+        repo.milestone()
+        folder, _ = repo.plan("feature", "alpha", "F01", "alpha")
+        repo.write("tools/project.toml", PROJECT + '\n[commands]\nsmoke = "python fake_runner.py --none"\n')
+        repo.tool("project", "update")
+        self.assertIn("Project updated", repo.git("log", "-1", "--format=%s"))
+        self.assertEqual(repo.git("show", "--name-only", "--format=", "HEAD"), "tools/project.toml")
+        self.assertIn(f"?? {folder}/", repo.git("status", "--porcelain"))
+
+    def test_revert_refactor_step_and_check_line(self):
+        repo = Scratch()
+        self.addCleanup(repo.remove)
+        repo.milestone()
+        repo.tool("progress", "add-feature", "M001", "refactor", "Share the loader of the parts", "TEST keep passes")
+        folder, plan = repo.plan("feature", "alpha", "F01", "alpha")
+        repo.add_row(plan, "Steps", "| S02 | F01 | Extend the part alpha | TEST alpha passes | none |")
+        plan_id, tree = repo.commit_plan(folder)
+        repo.tool("step_close", "start", "S01", where=tree)
+        repo.write("src/alpha.fk", "part\n", tree)
+        repo.git("add", "-A", where=tree)
+        repo.git("commit", "-q", "-m", "First attempt", where=tree)
+        self.assertIn("only an open or a reverted step", repo.tool("step_close", "set-text", "S01", "A new way", where=tree, fails=True))
+        repo.tool("step_close", "revert", "S01", where=tree)
+        repo.tool("step_close", "set-text", "S01", "Add the part alpha the new way", where=tree)
+        self.assertIn("| S01 | F01 | Add the part alpha the new way |", repo.read(plan, tree))
+
+        # a refactor step goes before the open steps after the approval of the user
+        self.assertIn("is not an open or in progress feature of the type refactor", repo.tool("step_close", "insert-refactor", "F02", "Move it", "TEST beta passes", "--answer", "yes", where=tree, fails=True))
+        self.assertIn("did the user approve", repo.tool("step_close", "insert-refactor", "F03", "Move each load into one loader", "TEST keep passes", where=tree, fails=True))
+        self.assertIn("stands before S02", repo.tool("step_close", "insert-refactor", "F03", "Move each load into one loader", "TEST keep passes", "--answer", "yes", where=tree))
+        text = repo.read(plan, tree)
+        self.assertIn("features: [F01, F03]", text)
+        self.assertIn("| S01 | F01 | Add the part alpha the new way | TEST alpha passes | none |\n| S03 | F03 |", text)
+        self.assertIn("- TEST keep passes", text)
+        self.assertIn("| S01 | F01 | **in progress** | | |\n| S03 | F03 | open | | |\n| S02 |", repo.read(f"{folder}/progress.md", tree))
+        self.assertEqual(repo.tool("progress", "status", where=tree).count("next step S01"), 1)
+
+        # a test that a step added gets its line in the verification of the running plan
+        repo.tool("step_close", "add-check", "TEST extra passes", "--answer", "yes", where=tree)
+        self.assertIn("- TEST extra passes", repo.read(plan, tree))
+        self.assertEqual(repo.git("status", "--porcelain", where=tree), "")
+
+    def test_manual_line_of_the_plan_verification(self):
+        repo = Scratch()
+        self.addCleanup(repo.remove)
+        repo.milestone()
+        folder, plan = repo.plan("feature", "alpha", "F01", "alpha")
+        repo.edit(plan, r"## Verification\n", "## Verification\n- MANUAL real_input\n")
+        plan_id, tree = repo.commit_plan(folder)
+        repo.step(tree, folder, "alpha")
+        repo.tool("plan_close", "sync", where=tree)
+        repo.review_plan(tree)
+        repo.tool("plan_close", "merge", plan_id)
+        self.assertIn("verification MANUAL real_input: ask the user", repo.tool("plan_close", "check", fails=True))
+        repo.tool("plan_close", "tuning")
+        repo.git("add", "-A")
+        repo.git("commit", "-q", "--allow-empty", "-m", "Close writes")
+        self.assertIn("the manual line real_input of the plan verification has no passed record", repo.tool("plan_close", fails=True))
+        self.assertIn("real_input: pass", repo.tool("plan_close", "check", "real_input", "--answer", "yes"))
+        repo.git("add", "-A")
+        repo.git("commit", "-q", "-m", "Manual record")
+        repo.tool("plan_close")
+
+
+class FixEvidence(unittest.TestCase):
+    def test_fix_step_needs_a_failing_run_first(self):
+        repo = Scratch()
+        self.addCleanup(repo.remove)
+        repo.milestone()
+        repo.tool("progress", "add-bug", "Part gamma is broken", "", "user", "TEST bug_gamma passes")
+        folder, _ = repo.plan("fix", "gamma", "B01", "bug_gamma")
+        _, tree = repo.commit_plan(folder)
+        repo.tool("step_close", "start", "S01", where=tree)
+        repo.write("tests/bug_gamma.fk", "pass\n", tree)
+        repo.git("add", "-A", where=tree)
+        repo.git("commit", "-q", "-m", "Regression test and fix", where=tree)
+        repo.tool("test", "bug_gamma", "--step", "S01", where=tree)
+        repo.tool("step_close", "review", "S01", where=tree)
+        output = repo.tool("step_close", "close", "S01", where=tree, fails=True)
+        self.assertIn("must show a failing run of bug_gamma before a passing run", output)
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -573,5 +675,5 @@ class Research(unittest.TestCase):
         self.assertIn("Step closed", repo.tool("step_close", "close", "S01", where=worktree))
         repo.tool("step_close", "set-text", "S02", "Add the part alpha the short way of R001", where=worktree)
         self.assertIn("| S02 | F01 | Add the part alpha the short way of R001 |", repo.read(plan, worktree))
-        self.assertIn("only an open step", repo.tool("step_close", "set-text", "S01", "A new question", where=worktree, fails=True))
+        self.assertIn("only an open or a reverted step", repo.tool("step_close", "set-text", "S01", "A new question", where=worktree, fails=True))
         self.assertIn("R002", repo.tool("research", "start", "second", where=worktree))

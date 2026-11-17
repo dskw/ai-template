@@ -8,6 +8,7 @@ from tools._lib import (
     RESEARCH_CHECK,
     STEP_HEADER,
     Problems,
+    active_plans,
     all_steps,
     approval_errors,
     ask,
@@ -180,14 +181,26 @@ def research_errors(step_id, base):
     return errors
 
 
-def set_text(step_id, text):
-    """Writes the new text of an open step, after the user approved the change that a research result needs."""
-    plan, milestone, problems, row = context(step_id)
-    if row["State"] != "open":
-        fail(f"step {step_id} has state {row['State']}, only an open step takes a new text")
+def last_record(problems, step_id):
+    found = [record["type"] for record in problems.records if record["ids"][:1] == [step_id]]
+    return found[-1] if found else None
+
+
+def step_text(text):
     text = " ".join(text.split())
     if not 1 <= words(text) <= 20 or "|" in text:
         fail("the step text must have 1 to 20 words and no '|'")
+    return text
+
+
+def set_text(step_id, text):
+    """Writes the new text of an open step, or of a reverted step before its new attempt, after the user approved
+    the change."""
+    plan, milestone, problems, row = context(step_id)
+    reverted = row["State"] == "in progress" and last_record(problems, step_id) == "step reverted"
+    if row["State"] != "open" and not reverted:
+        fail(f"step {step_id} has state {row['State']}, only an open or a reverted step takes a new text")
+    text = step_text(text)
     step = find_step(plan, step_id)
     step["Text"] = text
     heading, header, rows = ("Fix steps", FIX_HEADER, plan["fixes"]) if step in plan["fixes"] else ("Steps", STEP_HEADER, plan["steps"])
@@ -195,6 +208,92 @@ def set_text(step_id, text):
     save_plan(plan)
     commit(f"Step changed: {plan['id']} {step_id}", [plan["dir"]], verify=False)
     print(f"step {step_id} has the new text")
+
+
+def insert_refactor(feature_id, text, verification, answer):
+    """Inserts a refactor step before the open steps of the running plan, after the approval of the user. The
+    feature is a refactor feature of the milestone; the plan takes it into its features."""
+    plan, milestone, problems, _ = context()
+    if plan["field"] != "features":
+        fail("a fix plan takes no refactor step")
+    rows = [row for row in milestone["features"] if row["ID"] == feature_id]
+    if not rows or rows[0]["Type"] != "refactor" or rows[0]["State"] not in ("open", "in progress"):
+        fail(f"{feature_id} is not an open or in progress feature of the type refactor of {milestone['id']}")
+    for other in active_plans():
+        if other["id"] != plan["id"] and other["field"] == "features" and feature_id in other["ids"]:
+            fail(f"the active plan {other['id']} holds {feature_id}")
+    text = step_text(text)
+    if not parse_check(verification):
+        fail("the verification must be 'TEST <name> passes', 'COMMAND <name> passes' or 'MANUAL <name>'")
+    if not ask(f"Insert the refactor step '{text}' for {feature_id} before the open steps: did the user approve it?", answer):
+        fail("the user did not approve the refactor step")
+    position = next((index for index, row in enumerate(plan["progress"]) if row["State"] == "open"), None)
+    if position is None:
+        fail("the plan has no open step")
+    step_id = next_id("S", [step["Step"] for step in all_steps(plan)])
+    before = plan["progress"][position]["Step"]
+    index = next(index for index, step in enumerate(plan["steps"]) if step["Step"] == before)
+    plan["steps"].insert(index, {"Step": step_id, "Feature": feature_id, "Text": text, "Verification": verification, "Dependencies": "none"})
+    plan["progress"].insert(position, {"Step": step_id, "Feature": feature_id, "State": "open", "Evidence": "", "Round": ""})
+    if feature_id not in plan["ids"]:
+        plan["ids"].append(feature_id)
+    plan["text"] = write_table(plan["text"], "Steps", STEP_HEADER, plan["steps"], plan["rel"])
+    plan["text"] = add_verification(plan["text"], verification)
+    errors = refactor_order_errors(plan, milestone)
+    if errors:
+        fail("\n".join(errors))
+    save_plan(plan)
+    problems.record("refactor added", step_id, feature_id)
+    problems.save()
+    commit(f"Refactor step added: {plan['id']} {step_id}", [plan["dir"]], verify=False)
+    print(f"refactor step {step_id} stands before {before}")
+
+
+def refactor_order_errors(plan, milestone):
+    """Each open refactor step stands before each open step of a feature that is no refactor."""
+    refactors = {row["ID"] for row in milestone["features"] if row["Type"] == "refactor"}
+    errors, other = [], None
+    for row in plan["progress"]:
+        if row["State"] != "open":
+            continue
+        if row["Feature"] not in refactors:
+            other = other or row["Step"]
+        elif other:
+            errors.append(f"{row['Step']}: the refactor step stands after the open step {other} of a feature that is no refactor")
+    return errors
+
+
+def add_verification(text, check):
+    """The plan text with one more line in its verification section. A line that the section holds stays once."""
+    lines = text.split("\n")
+    start = lines.index("## Verification")
+    end = start + 1
+    while end < len(lines) and not lines[end].startswith("## "):
+        end += 1
+    held = [line[2:] for line in lines[start + 1 : end] if line.startswith("- ")]
+    if check in held:
+        return text
+    last = max((index for index in range(start + 1, end) if lines[index].startswith("- ")), default=start)
+    lines.insert(last + 1, f"- {check}")
+    return "\n".join(lines)
+
+
+def add_check(check, answer):
+    """Adds a check line to the verification of the running plan, for a test that a step added and the plan did not
+    name, after the approval of the user."""
+    plan, milestone, problems, _ = context()
+    if not parse_check(check):
+        fail("the check must be 'TEST <name> passes', 'COMMAND <name> passes' or 'MANUAL <name>'")
+    if not ask(f"Add the check '{check}' to the verification of {plan['id']}: did the user approve it?", answer):
+        fail("the user did not approve the check")
+    text = add_verification(plan["text"], check)
+    if text == plan["text"]:
+        print(f"the verification holds {check}")
+        return
+    plan["text"] = text
+    save_plan(plan)
+    commit(f"Check added: {plan['id']} {check}", [plan["dir"]], verify=False)
+    print(f"the verification holds {check}")
 
 
 def close(step_id, answer, by=None):
@@ -245,6 +344,12 @@ def close(step_id, answer, by=None):
             errors.append(f"the tests {' '.join(names)} fail:\n{output}")
     if not test.evidence_path(plan, step_id).is_file():
         errors.append("the evidence file is missing")
+    # the step of a bug shows that its test caught the bug: a failing run before a passing run
+    if plan["field"] == "bugs" and step in plan["steps"] and kind == "TEST" and not test.failed_before_passed(plan, step_id, name):
+        errors.append(
+            f"the evidence of {step_id} must show a failing run of {name} before a passing run:"
+            f" run python -m tools.test {name} --step {step_id} on the code before the fix"
+        )
     code, output = tool("check")
     if code != 0:
         errors.append(f"python -m tools.check fails:\n{output}")
@@ -340,6 +445,10 @@ def run(args):
         add_fix(*rest)
     elif command == "set-text" and len(rest) == 2:
         set_text(*rest)
+    elif command == "insert-refactor" and len(rest) == 3:
+        insert_refactor(*rest, answer)
+    elif command == "add-check" and len(rest) == 1:
+        add_check(rest[0], answer)
     else:
         fail(
             "usage: python -m tools.step_close <start|review|revert|block> <step>"
@@ -347,6 +456,8 @@ def run(args):
             ' | unblock <step> "<user answer>"'
             " | add-fix <problem> <step>"
             ' | set-text <step> "<text>"'
+            ' | insert-refactor <feature> "<text>" "<verification>" [--answer yes|no]'
+            ' | add-check "<check>" [--answer yes|no]'
         )
 
 

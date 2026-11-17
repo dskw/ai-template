@@ -23,7 +23,7 @@ The rules are in `docs/DOCS_CONVENTIONS.md`, sections Plan close, Tuning and Gat
 7. Show the user each entry of `extensions.md` without decision and each prepared tuning change. Ask for the decisions.
 8. Write each decision into `extensions.md`. A saved `Memory:` or `Setup:` row gets the decision `dropped` with the place as reason. Run `python -m tools.progress add-feature` for each approved entry. Use the type `refactor` for the decision `refactor`. Run `idea-add` with the source `agent` for each entry that fits no planned milestone. When the new feature conflicts with an item of `Out of scope`, run `python -m tools.progress out-of-scope remove "<item>"` in the same turn.
 9. Apply the tuning changes that the user agreed to.
-10. Run `python -m tools.plan_close check`. For a manual check, prepare the package of the section Manual verification of `step-run` in `docs/plans/<plan>/tmp/manual-check/`. Ask the user and pass the answer as the tool prints.
+10. Run `python -m tools.plan_close check`. For a manual check, prepare the package of the section Manual verification of `step-run` in `docs/plans/<plan>/tmp/manual-check/`. Ask the user and pass the answer as the tool prints. A `MANUAL` line of the plan verification is a manual check too, also when each feature has a test as acceptance. The plan gate refuses the close without its passed record.
 11. For a fix plan, run `bug-fix`. For a refactor plan, run `dependency-remove` for each dependency whose trigger the refactor removed.
 12. Commit the writes of the steps before.
 13. When a protected path changed, ask the user and run `python -m tools.approve <plan> close --answer <yes|no>`.

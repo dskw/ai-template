@@ -46,5 +46,8 @@ A research file that answers the question already replaces both.
 ## Open problems of an earlier plan
 Search the archived plans of each id for problems with the answer `user replan`. Write each of them into the step text of the step that solves it.
 
+## New binding
+When the plan needs a new binding, for example a named command for a check, run `project-update` before step 4 or after step 15. The project tool commits only its binding files, and the draft stays out of its commit.
+
 ## Fix plan steps
 Each bug has one step. The verification of the step is the acceptance check of the bug.

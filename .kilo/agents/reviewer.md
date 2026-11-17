@@ -49,6 +49,10 @@ The caller gives you:
 11. Verify a claim about a temporary file only inside the repository, in the temporary folders of `docs/DOCS_CONVENTIONS.md`.
 12. In a later round, check each problem of the round before against the new diff and its answer.
 
+## Runs
+- Run each build and each test in the foreground with the longest timeout that the shell tool allows. The shell tool moves a longer command into the background, and its output then lands outside the repository.
+- Never poll a file or a log in a loop, and never end your turn to wait for a run. The test tool writes the full log into the log folder of the repository; read a result there.
+
 ## Output
 1. The first line is the count: `<count> problems`.
 2. Each problem follows in the problem format of `docs/REVIEW.md`, without an id.

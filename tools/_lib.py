@@ -88,6 +88,8 @@ TOOL_COMMIT = "SETUP_TOOL_COMMIT"
 RECORD_TYPES = [
     "milestone manual passed",
     "milestone manual failed",
+    "plan manual passed",
+    "plan manual failed",
     "bug verified withdrawn",
     "step started",
     "step reviewed",
@@ -100,6 +102,7 @@ RECORD_TYPES = [
     "plan reviewed",
     "document reviewed",
     "fix added",
+    "refactor added",
     "review passed",
     "plan blocked",
     "plan unblocked",
