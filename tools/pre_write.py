@@ -1,6 +1,5 @@
 import os
 import sys
-import tempfile
 
 from tools._lib import (
     DRAFT_ONLY,
@@ -20,12 +19,12 @@ from tools._lib import (
 )
 
 GENERATED_MESSAGE = "Generated file. Edit the source and run the generator."
-OUTSIDE_MESSAGE = "Outside the repository. An agent writes only inside the repository and the temporary folder."
+OUTSIDE_MESSAGE = "Outside the repository. An agent writes only inside the repository, a temporary file into its tmp folders."
 TOOL_MESSAGE = "Write protected. Every write to this file goes through a tool, see docs/DOCS_CONVENTIONS.md."
 
 
 def outside_allowed(name):
-    roots = [tempfile.gettempdir(), os.path.join(os.path.expanduser("~"), ".claude")]
+    roots = [os.path.join(os.path.expanduser("~"), ".claude")]
     path = os.path.normcase(os.path.abspath(name))
     return any(path.startswith(os.path.normcase(os.path.abspath(root)) + os.sep) for root in roots)
 

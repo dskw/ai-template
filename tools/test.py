@@ -1,10 +1,8 @@
 import datetime
 import os
-import tempfile
 import xml.etree.ElementTree as ElementTree
-from pathlib import Path
 
-from tools._lib import BUILTIN_COMMANDS, ROOT, commit, fail, git, load_project, main, progress_row, read, require_plan, run as shell, take_option, write
+from tools._lib import BUILTIN_COMMANDS, LOG_FOLDER, ROOT, commit, fail, git, load_project, main, progress_row, read, require_plan, run as shell, take_option, write
 
 # the lines of output that the tool prints per failed test, and for a failed run without a report file
 FAILURE_LINES = 60
@@ -44,7 +42,7 @@ def evidence_runs(plan, step_id):
 
 
 def log_path():
-    folder = Path(tempfile.gettempdir()) / "ai-setup-test"
+    folder = ROOT / LOG_FOLDER / "test"
     folder.mkdir(parents=True, exist_ok=True)
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     return folder / f"{stamp}.log"

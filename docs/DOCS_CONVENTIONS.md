@@ -58,6 +58,7 @@ The docs lint covers `docs/**`, `AGENTS.md`, `.agents/**` and `CHANGELOG.md`. It
 /docs/design/                                  (design documents of the user)
 /docs/design/PROJECT.md                        (product, platforms and stack)
 /docs/research/R[NNN]-[NAME].md                (one research file per question, input only)
+/docs/research/tmp/                            (experiments of a research outside a plan, ignored by git)
 /docs/milestones/PROGRESS.md                   (one row per milestone, generated)
 /docs/milestones/M[NNN]-[NAME].md              (one milestone)
 /docs/milestones/archive/                      (closed milestones)
@@ -67,6 +68,7 @@ The docs lint covers `docs/**`, `AGENTS.md`, `.agents/**` and `CHANGELOG.md`. It
 /docs/plans/M[NNN]-P[NNN]-[NAME]/problems.md   (review problems, answers and records)
 /docs/plans/M[NNN]-P[NNN]-[NAME]/evidence/     (raw output per step, written by tools.test)
 /docs/plans/M[NNN]-P[NNN]-[NAME]/tmp/          (temporary files of the plan, the manual check package, deleted at plan close)
+/docs/plans/M[NNN]-P[NNN]-[NAME]/tmp/research/ (experiments of a research of the plan)
 /docs/milestones/tmp/                          (the manual check package of the milestone close, deleted at that close)
 /docs/plans/archive/                           (closed plans)
 /docs/plans/IDEAS.md                           (ideas for later milestones)
@@ -75,6 +77,7 @@ The docs lint covers `docs/**`, `AGENTS.md`, `.agents/**` and `CHANGELOG.md`. It
 /docs/wiki/_sidebar.md                         (navigation: each page once under its group)
 /docs/wiki/[GROUP]/[PAGE].md                   (one page; the groups are start, architecture, systems, working and those of the project)
 /docs/wiki/assets/                             (generated bundle with the dark theme; no page lives here)
+/.logs/                                        (logs of the test tool and the timing tool, ignored by git)
 /CHANGELOG.md                                  (versions, written by tools.milestone_close)
 /DEPLOYMENT.md                                 (deployed version and compatible paths, written by the user)
 ```
@@ -153,7 +156,8 @@ The user can draw a route on the map, save it and load it again.
 |---|---|
 | D23 | `status` is `draft`, `open` or `closed`. |
 | D24 | `Goal` has one to three sentences. It names the user result, not the implementation. |
-| D25 | A feature text has max 12 words. `Type` is `new`, `update` or `refactor`. A refactor changes the structure of the code and no behavior. |
+| D25 | A feature text has max 12 words. `Type` is `new`, `update` or `refactor`. A refactor changes the structure of the code and no behavior. It can add a structure for a later instance and change each caller of a moved structure. |
+| D267 | A feature that another feature needs stands above it in the table. The text of the dependent feature names its id. |
 | D26 | An acceptance is one check: `TEST <name> passes`, `COMMAND <name> passes` or `MANUAL <name>`. |
 | D27 | The user runs a `MANUAL` check, or delegates it to the agent for one step or one plan. A tool records the answer and its source. |
 | D187 | A manual check package of a step or a plan goes into `docs/plans/<plan>/tmp/manual-check/`, one of the milestone close into `docs/milestones/tmp/manual-check/`. A close fails while a package is in use. |
@@ -257,7 +261,10 @@ closed:
 | ID | Rule |
 |---|---|
 | D49 | `type` is `feature`, `fix` or `refactor`. A fix plan holds its bug ids in the field `bugs`, not `features`. |
-| D201 | A refactor plan holds features of the type `refactor` only, and a feature plan holds none. Its checks are existing tests of the changed code. |
+| D201 | A refactor plan holds features of the type `refactor` only. A feature plan can hold a feature of the type `refactor`, and its steps stand before the steps of the other features. |
+| D256 | A step of a feature of the type `refactor` is a refactor step. Its checks are existing tests of the changed code. |
+| D260 | A refactor step that adds the first instance of a structure has the new test of the feature acceptance as a further check. |
+| D261 | A refactor step adds no instance, so the row `DEP-01` does not apply to it. |
 | D202 | `Dependencies` holds the id of each row of `docs/DEPENDENCIES.md` whose trigger the step meets, or `none`. The tools refuse an empty cell. |
 | D203 | The `Verification` section of the plan lists the validation of each dependency that a step names, when it is a check. |
 | D50 | `status` is `draft`, `in progress`, `blocked` or `closed`. |
@@ -324,7 +331,7 @@ stateDiagram-v2
 |---|---|
 | D62 | Each entry gets one decision of the user before the plan closes: `feature`, `refactor` or `dropped`. |
 | D63 | `feature` and `refactor` hold the milestone id in `Detail`. `dropped` holds a reason of max 12 words. |
-| D204 | `refactor` is the decision for a structural extension. It becomes a feature of the type `refactor`, and a refactor plan implements it before the next instance. |
+| D204 | `refactor` is the decision for a structural extension. It becomes a feature of the type `refactor`, which a refactor plan or the plan of the next instance implements first. |
 | D64 | Add an approved entry with `python -m tools.progress add-feature`. |
 
 ## Problems file
@@ -413,7 +420,7 @@ sequenceDiagram
 | D79 | A step has one new attempt. After the second attempt fails, block the step and ask the user. The user can also accept the open problem of a step in progress: `step_close unblock` writes the decision, and the step goes on. |
 | D80 | No other step starts while a step has the state `blocked`. |
 | D81 | The agent commits during a step as often as necessary, with a message of its own. A tool commits each of its own state writes at once. |
-| D207 | A delegated agent reads the memory index first. It follows each memory of the types user and feedback like the main session. |
+| D207 | A delegated agent first compares its directory with the worktree of its task, then reads the memory index. It follows each memory of the types user and feedback like the main session. |
 | D188 | Tuning requests of a manual check belong to the step of the check, also when they touch an earlier step of the feature. |
 | D195 | The `implementor` agent writes the code and the documents of a step in a fresh context. The main session runs the tools and reads the reports. |
 | D246 | In a research step the `researcher` agent takes the place of the implementor. The document review of the research file is the review of the step. |
@@ -514,7 +521,9 @@ A gate runs its checks itself. A gate failure names the missing item.
 | D214 | A tool commits its write to such a file, to an evidence file, to the ideas file and to the dependencies file at once. The commit check refuses each other commit that holds one. |
 | D116 | Never delete, rename or move a milestone file, a plan folder or an archive entry by hand. |
 | D117 | Never edit a generated file. Edit the source and run the generator. |
-| D181 | Write only inside the repository and the temporary folder. The pre-write hook blocks a write to a different folder. |
+| D181 | Write only inside the repository. A temporary file goes into `docs/plans/<plan>/tmp/`, `docs/research/tmp/` or `docs/milestones/tmp/`. |
+| D257 | Outside the repository, the pre-write hook allows only the user folder of the provider. The bash guard refuses a command of an agent that names a path outside the repository. |
+| D258 | The bash guard allows the folders of `toolchain_folders` and `dependency_source` in `tools/project.toml`. It does not check the main session. |
 
 ## Commits
 The tools make these commits. The agent never makes them by hand.
@@ -529,7 +538,7 @@ The tools make these commits. The agent never makes them by hand.
 | `Approval recorded: M003-P002 S01` | `approve` |
 | `Step closed: M003-P002 S01` | `step_close close` |
 | `Feature added: M003 F06`, `Feature dropped: M003 F06 <reason>` | `progress add-feature`, `progress drop-feature` |
-| `Dependency added: DEP-02`, `Dependency removed: DEP-02 M003-P002` | `dependency add`, `dependency remove` |
+| `Dependency added: DEP-02`, `Dependency changed: DEP-02`, `Dependency removed: DEP-02 M003-P002` | `dependency add`, `dependency change`, `dependency remove` |
 | `Bug reported: M003 B01` | `progress add-bug` |
 | `Bug fixed: M003 B01` | `plan_close` |
 | `Bug dropped: M003 B02 <reason>` | `progress drop-bug` |
@@ -622,12 +631,13 @@ A research file answers one question before the work on a feature. The skill `re
 ## Dependencies
 | ID | Trigger | Action | Validation |
 |---|---|---|---|
-| DEP-01 | A step adds another instance of something that exists | Add it in max 3 places, else stop and record a structural extension | The reviewer counts the places in the step diff |
+| DEP-01 | A step adds one more instance of a type that the project already has, such as a data file, a message or a handler. | Add only the own places of the instance. When it repeats knowledge of the type in another place, stop and record a structural extension. | The reviewer names each place outside the instance that repeats knowledge of the type as Shotgun Surgery, or states that there is none. |
 | DEP-02 | A step adds state of a running session | Carry it through each restart path | TEST session_restart passes |
 
 ## Records
 - added DEP-01 template 2026-11-08
 - added DEP-02 M003 2026-11-10
+- changed DEP-01 user 2026-11-12
 ```
 
 | ID | Rule |
@@ -638,10 +648,15 @@ A research file answers one question before the work on a feature. The skill `re
 | D223 | A row is not allowed when a conventions rule or one test can express it. |
 | D224 | The file holds max 9 rows. A further row needs a removal first. |
 | D225 | `Validation` is a check that a tool or the reviewer can run. |
-| D226 | Only `python -m tools.dependency` writes the file. Each add and each removal writes one record line with the source or the reason. |
+| D226 | Only `python -m tools.dependency` writes the file. Each add, change and removal writes one record line with the source or the reason. |
+| D262 | `python -m tools.dependency change` writes new cells into a row on a decision of the user. The row keeps its id. |
 | D227 | `dependency-add` proposes a row at two times only: at the milestone creation from the design, and at the plan close for a topic that came back. The user decides. |
 | D228 | `dependency-remove` removes a row only in the close of a refactor plan, and only when the reviewer agrees that the row has no value any more. |
 | D229 | The row `DEP-01` belongs to the setup. Each other row belongs to the project. |
+| D263 | A type is a group of things that the project already has and that share one structure. |
+| D264 | Knowledge of a type is a fact that holds for each instance, such as where its files lie or how a program loads it. |
+| D265 | The own places of an instance are its code, its data, its tests and its registration. A registration names the instance where the project lists the instances of its type. |
+| D266 | The reviewer names a place by its unit: a function, a method, a data structure, a constant, or a file without such units. |
 
 ## Local memory
 ```
@@ -677,7 +692,7 @@ Index line: `- [feedback] MEM-use-pnpm: Use pnpm, not npm`
 | D232 | `systems/` holds one page per system of the product. `working/` holds `build-and-run.md`, `testing.md` and one page per recurring task. |
 | D233 | A project adds groups for its domain, for example for its content and for its tuning values. No group uses the folder `assets/`. |
 | D234 | A system page has these sections in this order: `What it does`, `How it works`, `Where the code is`, `How to change or extend it`, `Gotchas`. |
-| D235 | `Where the code is` is a table of roles and paths. `How to change or extend it` has one task per paragraph, with its steps. |
+| D235 | `Where the code is` is a table of roles and paths. Each row names in one sentence the decision that its module hides (C21). `How to change or extend it` has one task per paragraph, with its steps. |
 | D236 | `README.md` is the overview: what the product does, its parts, its principles, its core words and the page map. |
 | D237 | The page map is a table with one row per page and what the page holds. It is the specification of the wiki of the project. |
 | D238 | `_sidebar.md` lists each page once under its group. Its paths start at the root of the wiki, with `/`. |
@@ -848,6 +863,7 @@ build = "python -m build"
 | D173 | Each command is a command line of the stack of the project, for example `cargo test {name}` or `cargo clippy`. |
 | D174 | A project with a second test runner binds it as an entry of `[commands]`. |
 | D182 | `dependency_source` is optional. It names the folder with the source of the installed dependencies. |
+| D259 | `toolchain_folders` is optional. It lists the folders of the tool chain outside the repository that a command of an agent names. |
 
 ## Tool reference
 Each tool runs as `python -m tools.<name>`. A tool without arguments prints its usage when it needs arguments.
@@ -858,8 +874,8 @@ Each tool runs as `python -m tools.<name>`. A tool without arguments prints its 
 | `provider` | none, `check` | Generates the provider files. Checks that they are current. |
 | `check` | none, `<files>`, `--format-only`, `--staged` | Runs lint, format, encoding, docs lint, memory lint, provider, wiki and progress checks. `--format-only` skips the lint. `--staged`, the commit hook, lints the staged documents only and refuses a tool file in a commit that no tool makes. |
 | `pre_write`, `post_write` | | Hook entries. Block a protected write. Run the generator and the checks for a changed file. |
-| `timing` | `start`, `end`, `report [<log>]` | Hook entries that log the duration of each tool call of a session in the temp folder. The report prints the time per tool and the slowest calls. |
-| `agent_guard` | `<bash or edit>` | Hook entry. Reads the agent from `agent_type` of the hook input. Checks a call against `bash_allow` and `edit_allow`. |
+| `timing` | `start`, `end`, `report [<log>]` | Hook entries that log the duration of each tool call of a session in `.logs/timing/` of the main repository. The report prints the time per tool and the slowest calls. |
+| `agent_guard` | `<bash or edit>` | Hook entry. Reads the agent from `agent_type` of the hook input. Checks a call against `bash_allow` and `edit_allow`. Refuses a command of an agent that names a path outside the repository. |
 | `project` | `init`, `update`, `check` | Validates the bindings and commits them. |
 | `progress` | none, `check`, `status`, `add-feature`, `drop-feature`, `set-goal`, `out-of-scope <add or remove>`, `add-bug`, `fix-bug`, `drop-bug` | Writes `PROGRESS.md` and the feature tables. Prints the next step in a worktree and the active plans in the main repository. Writes features, bugs, the goal and the out of scope list in the main repository. |
 | `milestone_create` | `start <name>`, `commit` | Creates the branch and the draft file. Validates and commits the milestone. |
@@ -869,8 +885,8 @@ Each tool runs as `python -m tools.<name>`. A tool without arguments prints its 
 | `plan_close` | In the worktree: `sync`, `reviewed`, `review-passed`, `block`, `unblock`. In the main repository: `merge <plan>`, `tuning`, `check`, `verify-bug`, none | Makes each state change of the plan close. |
 | `milestone_close` | none, `check`, `migrate <id>` | Closes, merges or migrates a milestone. |
 | `approve` | `<plan> <step or close>` | Writes an approval record of the user. |
-| `test` | none, `<name> [<name> ...]`, `<name> --command`, `--step <step>` | Runs the suite, the named tests in one call of the runner, or a command. Prints one line for a pass and the failed tests for a failure. Writes the full output to the evidence or to a log in the temporary folder. |
-| `dependency` | `add "<trigger>" "<action>" "<validation>" "<source>"`, `remove <id> "<reason>"` | Adds a row with the next id to `docs/DEPENDENCIES.md` and removes one in the close of a refactor plan. Commits the file. |
+| `test` | none, `<name> [<name> ...]`, `<name> --command`, `--step <step>` | Runs the suite, the named tests in one call of the runner, or a command. Prints one line for a pass and the failed tests for a failure. Writes the full output to the evidence or to a log in `.logs/test/`. |
+| `dependency` | `add "<trigger>" "<action>" "<validation>" "<source>"`, `change <id> "<trigger>" "<action>" "<validation>" "<source>"`, `remove <id> "<reason>"` | Adds a row with the next id to `docs/DEPENDENCIES.md`, changes the cells of a row and removes one in the close of a refactor plan. Commits the file. |
 | `memory_index`, `memory_lint` | none, `show`, `--strict` | Writes and checks the memory index and the entries. |
 | `ideas` | `add "<idea>" <user or agent>`, `remove <id> [<id> ...] "<reason>"` | Adds an idea with the next id and removes ideas from `docs/plans/IDEAS.md`. Commits the file. |
 | `research` | `start <name>`, `check [<id> ...]`, `commit <id>` | Starts a research file with the next id. Checks the frame of the research files. Commits one file. |

@@ -17,16 +17,18 @@ The caller gives you:
 - For a document review, the path of the document or its text.
 
 ## Procedure
-1. Read `docs/MEMORY.md`. Open each entry of the types user and feedback and follow it.
-2. Read `docs/REVIEW.md`. Follow its procedure for the given scope.
-3. Read the step text or the plan in `plan.md` of the plan folder, and `docs/DEPENDENCIES.md`.
-4. Read the diff of the step with `git diff <start commit>`.
-5. Find the `Plan created:` commit with `git log`. Read the diff of the plan with `git diff <commit>`.
-6. Check the duplication candidates and the fit candidates against the diff of the plan.
-7. Read the conventions file of each rule that a candidate maps to.
-8. Read the code around the change. Search the repository for existing code that the change can reuse.
-9. Run `python -m tools.test <name>` when a test can show a failure.
-10. In a later round, check each problem of the round before against the new diff and its answer.
+1. Run `git rev-parse --show-toplevel`. Compare the result with the worktree or the repository that the task names. When they differ, stop and report both paths.
+2. Read `docs/MEMORY.md`. Open each entry of the types user and feedback and follow it.
+3. Read `docs/REVIEW.md`. Follow its procedure for the given scope.
+4. Read the step text or the plan in `plan.md` of the plan folder, and `docs/DEPENDENCIES.md`.
+5. Read the diff of the step with `git diff <start commit>`.
+6. Find the `Plan created:` commit with `git log`. Read the diff of the plan with `git diff <commit>`.
+7. Check the duplication candidates and the fit candidates against the diff of the plan.
+8. Read the conventions file of each rule that a candidate maps to.
+9. Read the code around the change. Search the repository for existing code that the change can reuse.
+10. Run `python -m tools.test <name>` when a test can show a failure.
+11. Verify a claim about a temporary file only inside the repository, in the temporary folders of `docs/DOCS_CONVENTIONS.md`.
+12. In a later round, check each problem of the round before against the new diff and its answer.
 
 ## Output
 1. The first line is the count: `<count> problems`.

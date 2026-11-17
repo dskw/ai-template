@@ -15,6 +15,8 @@ MILESTONES = DOCS / "milestones"
 PLANS = DOCS / "plans"
 PROJECT_FILE = ROOT / "tools" / "project.toml"
 CHANGELOG = ROOT / "CHANGELOG.md"
+# the logs of the tools lie in this folder of the repository, which git ignores
+LOG_FOLDER = ".logs"
 
 MILESTONE_FILE = re.compile(r"^(M\d{3})-([a-z0-9]+(?:-[a-z0-9]+)*)\.md$")
 PLAN_DIR = re.compile(r"^(M\d{3})-(P\d{3})-([a-z0-9]+(?:-[a-z0-9]+)*)$")

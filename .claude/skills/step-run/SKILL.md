@@ -5,6 +5,7 @@ description: Implements the next step of the plan of this worktree with code, ev
 # step-run
 
 The rules are in `docs/DOCS_CONVENTIONS.md`, section Step execution, and in the code and test conventions. The main session orchestrates: it runs the tools of the step state, starts the agents and reads their reports, not the code.
+Change the directory to the worktree of the plan right before each agent start. Name the worktree in the task of the agent.
 
 ## Procedure
 1. Run `python -m tools.progress status` in the worktree of the plan. Take the step that it prints.

@@ -101,14 +101,15 @@ def validate(plan, milestone):
     if not plan["ids"]:
         errors.append(f"{name}: the field '{plan['field']}' is empty")
     if plan["field"] == "features":
+        # a refactor plan holds refactor features only; a feature plan holds any feature, its refactor steps first
         refactor = plan["meta"]["type"] == "refactor"
         valid = {
             row["ID"]
             for row in milestone["features"]
-            if row["State"] in ("open", "in progress") and (row["Type"] == "refactor") == refactor
+            if row["State"] in ("open", "in progress") and (row["Type"] == "refactor" or not refactor)
         }
         pattern = FEATURE_ID
-        label = "an open or in progress feature of the type refactor" if refactor else "an open or in progress feature that is no refactor"
+        label = "an open or in progress feature of the type refactor" if refactor else "an open or in progress feature"
     else:
         valid = {row["ID"] for row in milestone["bugs"]}
         pattern, label = BUG_ID, "a bug of the Bugs table"
@@ -137,6 +138,11 @@ def validate(plan, milestone):
             errors.append(f"{name}: {step['Step']}: the verification must be the acceptance of {step['Feature']}")
         errors += dependency_errors(step["Dependencies"], f"{name}: {step['Step']}")
     if plan["field"] == "features":
+        refactors = {row["ID"] for row in milestone["features"] if row["Type"] == "refactor"}
+        other = next((step["Step"] for step in plan["steps"] if step["Feature"] not in refactors), None)
+        for step in plan["steps"]:
+            if other and step["Feature"] in refactors and step["Step"] > other:
+                errors.append(f"{name}: {step['Step']}: the refactor step stands after the step {other} of a feature that is no refactor")
         # the steps of one feature extend the one test of that feature
         for item in plan["ids"]:
             tests = {

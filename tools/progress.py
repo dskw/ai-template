@@ -241,6 +241,8 @@ def main_status(milestone):
             print(f"plan {plan['id']}: {plan['meta']['status']} in the worktree {worktree_path(plan['id'])}")
     if not found:
         print("no active plan")
+    if len(found) > 1:
+        print("each agent starts in the worktree of its plan: change the directory right before each agent start")
     if not milestone:
         print("no open milestone")
         return

@@ -1,6 +1,7 @@
 """Tests of the tools. Each test class builds a scratch repository in the temporary folder from the setup files of
 this repository and plays the agent in it. Run: python -m unittest discover tools/tests"""
 
+import json
 import os
 import re
 import shutil
@@ -62,7 +63,7 @@ DEPENDENCIES = """# Dependencies
 ## Dependencies
 | ID | Trigger | Action | Validation |
 |---|---|---|---|
-| DEP-01 | A step adds another instance of something that exists | Add it in max 3 places, else stop and record a structural extension | The reviewer counts the places in the step diff |
+| DEP-01 | A step adds one more instance of a type that the project already has, such as a data file, a message or a handler. | Add only the own places of the instance. When it repeats knowledge of the type in another place, stop and record a structural extension. | The reviewer names each place outside the instance that repeats knowledge of the type as Shotgun Surgery, or states that there is none. |
 
 ## Records
 - added DEP-01 template 2026-01-01
@@ -140,10 +141,11 @@ class Scratch:
         lines.insert(index + 1, row)
         self.write(name, "\n".join(lines), where)
 
-    def run(self, command, where=None, env=None):
+    def run(self, command, where=None, env=None, stdin=None):
         result = subprocess.run(
             command,
             cwd=where or self.root,
+            input=stdin.encode("utf-8") if stdin else None,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env={**os.environ, **(env or {})},
@@ -155,9 +157,9 @@ class Scratch:
         assert code == 0, f"git {' '.join(args)}:\n{output}"
         return output.strip()
 
-    def tool(self, name, *args, where=None, fails=False, env=None):
-        """Runs a tool and returns its output. It must pass, or fail when `fails` is set."""
-        code, output = self.run([sys.executable, "-m", f"tools.{name}", *args], where, env)
+    def tool(self, name, *args, where=None, fails=False, env=None, stdin=None):
+        """Runs a tool and returns its output. It must pass, or fail when `fails` is set. `stdin` is the hook input."""
+        code, output = self.run([sys.executable, "-m", f"tools.{name}", *args], where, env, stdin)
         assert (code != 0) == fails, f"python -m tools.{name} {' '.join(args)} gave exit {code}:\n{output}"
         return output
 
@@ -256,6 +258,7 @@ class ParallelPlans(unittest.TestCase):
         status = repo.tool("progress", "status")
         self.assertIn(f"plan {first}: in progress in the worktree", status)
         self.assertIn(f"plan {second}: in progress in the worktree", status)
+        self.assertIn("each agent starts in the worktree of its plan", status)
 
         # the step tools run in the worktree only, and a worktree writes no shared file of the milestone
         self.assertIn("run this command in", repo.tool("step_close", "start", "S01", fails=True))
@@ -273,6 +276,7 @@ class ParallelPlans(unittest.TestCase):
         # a failed run prints the count and the failed test only, a passed run one line
         failed = repo.tool("test", "beta", "--step", "S01", where=tree_two, fails=True)
         self.assertIn("passed 0, failed 1", failed)
+        self.assertIn(str(tree_two / ".logs" / "test"), failed)
         self.assertIn("--- failed: scratch beta", failed)
         self.assertNotIn("noise of the runner", failed)
         repo.write("tests/beta.fk", "pass\n", tree_two)
@@ -369,12 +373,13 @@ class OtherPlans(unittest.TestCase):
         self.assertIn("Bug fixed: M001 B01", repo.git("log", "--format=%s"))
         self.assertNotIn("B01", repo.read("docs/milestones/M001-demo.md"))
 
-        # a refactor is a feature of its own type with a refactor plan; its close can remove a dependency
+        # a refactor plan holds features of the type refactor only; its close can remove a dependency
         repo.tool("dependency", "add", "A step adds state", "Carry it", "TEST alpha passes", "M001")
         repo.tool("progress", "add-feature", "M001", "refactor", "Share the code of the parts", "TEST shared passes")
-        folder, plan = repo.plan("feature", "shared", "F03", "shared")
-        self.assertIn("is not an open or in progress feature that is no refactor", repo.tool("plan_create", "commit", fails=True))
-        repo.edit(plan, r"type: feature", "type: refactor")
+        folder, plan = repo.plan("refactor", "shared", "F01", "shared")
+        self.assertIn("F01 is not an open or in progress feature of the type refactor", repo.tool("plan_create", "commit", fails=True))
+        repo.edit(plan, r"features: \[F01\]", "features: [F03]")
+        repo.edit(plan, r"\| S01 \| F01 \|", "| S01 | F03 |")
         refactor, tree = repo.commit_plan(folder)
 
         # a second plan changes the same file, so the later sync has a conflict
@@ -438,6 +443,14 @@ class Bindings(unittest.TestCase):
         self.assertIn("added DEP-02", repo.tool("dependency", "add", "A step adds state", "Carry it", "TEST state passes", "M001"))
         self.assertIn("- added DEP-02 M001", repo.read("docs/DEPENDENCIES.md"))
         self.assertIn("only in the close of a refactor plan", repo.tool("dependency", "remove", "DEP-02", "No value", fails=True))
+        # a change keeps the id and the place of the row and writes a record line
+        self.assertIn("changed DEP-01", repo.tool("dependency", "change", "DEP-01", "A new trigger", "A new action", "TEST state passes", "user"))
+        text = repo.read("docs/DEPENDENCIES.md")
+        self.assertIn("| DEP-01 | A new trigger | A new action | TEST state passes |\n| DEP-02 |", text)
+        self.assertIn("- changed DEP-01 user", text)
+        self.assertIn("Dependency changed: DEP-01", repo.git("log", "-1", "--format=%s"))
+        self.assertIn("DEP-05 is not in", repo.tool("dependency", "change", "DEP-05", "A", "B", "C", "user", fails=True))
+        self.assertIn("1 to 25 words", repo.tool("dependency", "change", "DEP-01", "word " * 26, "B", "C", "user", fails=True))
         for _ in range(7):
             repo.tool("dependency", "add", "A step adds state", "Carry it", "TEST state passes", "M001")
         self.assertIn("maximum of 9", repo.tool("dependency", "add", "A step adds state", "Carry it", "TEST state passes", "M001", fails=True))
@@ -459,6 +472,31 @@ class Bindings(unittest.TestCase):
         self.assertIn('href="assets/theme.css"', repo.read("docs/wiki/index.html"))
         self.assertTrue((repo.root / "docs/wiki/assets/theme.css").is_file())
 
+    def test_agent_works_inside_the_repository(self):
+        repo = self.repo
+        outside = Path(tempfile.gettempdir()).resolve() / "experiment"
+        self.assertIn("Outside the repository", repo.tool("pre_write", str(outside / "a.txt"), fails=True))
+        repo.tool("pre_write", "docs/research/tmp/a.txt")
+
+        def guard(command, agent="implementor"):
+            data = {"tool_input": {"command": command}, **({"agent_type": agent} if agent else {})}
+            code, output = repo.run([sys.executable, "-m", "tools.agent_guard", "bash"], stdin=json.dumps(data))
+            return code, output
+
+        self.assertIn("works only inside the repository", guard(f"ls {outside.as_posix()}")[1])
+        self.assertEqual(guard("ls ~/notes")[0], 2)
+        self.assertEqual(guard("ls $TEMP")[0], 2)
+        self.assertEqual(guard(f"ls {outside.as_posix()}", agent=None)[0], 0)
+        self.assertEqual(guard(f"ls {(repo.root / 'docs').as_posix()} 2>/dev/null")[0], 0)
+        self.assertEqual(guard('grep -rn "/api/v1" src')[0], 0)
+        self.assertEqual(guard("grep -n / src/main.rs")[0], 0)
+        self.assertEqual(guard("git log HEAD~1")[0], 0)
+        binding = f'toolchain_folders = ["{outside.as_posix()}"]\n[[language]]'
+        repo.write("tools/project.toml", PROJECT.replace("[[language]]", binding))
+        repo.tool("project", "check")
+        self.assertEqual(guard(f"ls {outside.as_posix()}/bin")[0], 0)
+        repo.write("tools/project.toml", PROJECT)
+
     def test_ask_rule_for_the_answer_of_the_user(self):
         self.assertIn('"Bash(* --answer *)"', self.repo.read(".claude/settings.json"))
 
@@ -476,6 +514,29 @@ class Rounds(unittest.TestCase):
         self.assertEqual(rounds(Records(*reviewed, "step unblocked"), "S01"), 3)
         self.assertEqual(rounds(Records(*reviewed, "step reverted", "step reviewed"), "S01"), 1)
         self.assertEqual(rounds(Records(*reviewed, "step blocked", "step unblocked"), "S01"), 0)
+
+
+class RefactorFirst(unittest.TestCase):
+    def test_feature_plan_holds_its_refactor_steps_first(self):
+        repo = Scratch()
+        self.addCleanup(repo.remove)
+        repo.milestone()
+        repo.tool("progress", "add-feature", "M001", "refactor", "Share the loader of the parts", "TEST keep passes")
+        folder, plan = repo.plan("feature", "alpha", "F01", "alpha")
+        repo.edit(plan, r"features: \[F01\]", "features: [F01, F03]")
+        repo.add_row(plan, "Steps", "| S02 | F03 | Move each load into one loader | TEST keep passes | none |")
+        repo.edit(plan, r"## Verification\n", "## Verification\n- TEST keep passes\n")
+        output = repo.tool("plan_create", "commit", fails=True)
+        self.assertIn("S02: the refactor step stands after the step S01 of a feature that is no refactor", output)
+        repo.edit(plan, r"\| S01 \| F01 \|", "| S00 | F01 |")
+        repo.edit(plan, r"\| S02 \| F03 \|", "| S01 | F03 |")
+        repo.edit(plan, r"\| S00 \| F01 \|", "| S02 | F01 |")
+        lines = repo.read(plan).split("\n")
+        first = lines.index("| S02 | F01 | Add the part alpha | TEST alpha passes | none |")
+        lines[first], lines[first + 1] = lines[first + 1], lines[first]
+        repo.write(plan, "\n".join(lines))
+        plan_id, _ = repo.commit_plan(folder)
+        self.assertIn(f"Plan created: {plan_id}", repo.git("log", "-1", "--format=%s"))
 
 
 if __name__ == "__main__":

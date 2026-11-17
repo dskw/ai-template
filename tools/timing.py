@@ -1,17 +1,16 @@
 """Logs the duration of each tool call of an agent session and reports the slowest calls and the time per tool.
 
-Hook entries: `start` runs before a tool call, `end` after it. The log of a session lies in the temp folder of the
-machine, one line per call. `report [<log>]` prints the slowest calls and the time per tool of the newest log."""
+Hook entries: `start` runs before a tool call, `end` after it. The log of a session lies in the log folder of the main
+repository, one line per call. `report [<log>]` prints the slowest calls and the time per tool of the newest log."""
 
 import json
-import tempfile
 import time
 from collections import Counter
 from pathlib import Path
 
-from tools._lib import fail, hook_input, main
+from tools._lib import LOG_FOLDER, fail, hook_input, main, main_root
 
-LOG_DIR = Path(tempfile.gettempdir()) / "ai-setup-timing"
+LOG_DIR = main_root() / LOG_FOLDER / "timing"
 SLOWEST = 15
 
 

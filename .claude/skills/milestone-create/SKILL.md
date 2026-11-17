@@ -14,6 +14,7 @@ The format and the rules of a milestone file are in `docs/DOCS_CONVENTIONS.md`, 
 5. Read `docs/design/`, `docs/DEPENDENCIES.md` and the user request.
 6. Write the `Goal`, the feature rows and the `Out of scope` list into the draft file.
 7. A feature row has the next id, the feature text, the type and one acceptance check. `Plans` stays empty. `State` is `open`.
+   A feature that another feature needs stands above it in the table. The text of the dependent feature names it.
 8. Ask the user for each acceptance that `docs/design/` does not give. A feature without acceptance does not pass.
 9. Tell the user each feature that meets a trigger of the section Research of `plan-create`, as `needs research`.
 10. Write a bug row for each open bug that this milestone takes over. Give each row a new id.
@@ -22,7 +23,8 @@ The format and the rules of a milestone file are in `docs/DOCS_CONVENTIONS.md`, 
 13. Run `python -m tools.milestone_create commit`. Fix each item that it names and run it again.
 14. Run `idea-remove` for each idea of the ideas file that the milestone plans, with the milestone id as reason.
 15. When the design gives the milestone a system that later work must respect, run `dependency-add` for it with the milestone id as source.
-16. When a feature adds a further instance of something that exists, name it to the user. A feature of the type `refactor` comes first when the code needs too many places for the instance.
+16. When a feature adds one more instance of a type, name it to the user. A feature of the type `refactor` comes first when the instance would repeat knowledge of the type outside its own places.
+   A feature that another feature needs gives a dependency row only when the rules of the section Dependencies file hold.
 
 ## Scope change of an open milestone
 After the creation commit, change the goal with `python -m tools.progress set-goal "<text>"`. Change the out of scope list with `python -m tools.progress out-of-scope add "<item>"` or `out-of-scope remove "<item>"`. Run them only on a user decision.
