@@ -1,4 +1,5 @@
-"""Keeps the ideas file of later milestones: adds an idea with the next id and removes planned or dropped ideas."""
+"""Keeps the ideas file of later milestones: adds an idea with the next id, changes the text of an idea and removes
+planned or dropped ideas."""
 
 import re
 from datetime import datetime
@@ -30,11 +31,15 @@ def next_id(text):
     return f"IDEA{max(numbers, default=0) + 1:03d}"
 
 
+def check_text(idea):
+    if not 1 <= words(idea) <= 25:
+        fail("the idea must have 1 to 25 words")
+
+
 def add(idea, source):
     if source not in ("user", "agent"):
         fail("the source must be 'user' or 'agent'")
-    if not 1 <= words(idea) <= 25:
-        fail("the idea must have 1 to 25 words")
+    check_text(idea)
     text, table = rows()
     row = {
         "ID": next_id(text),
@@ -45,6 +50,19 @@ def add(idea, source):
     write(IDEAS, write_table(text, None, IDEAS_HEADER, table + [row], IDEAS))
     commit(f"Idea added: {row['ID']}", [IDEAS])
     print(f"added {row['ID']}")
+
+
+def edit(idea_id, idea):
+    """Writes the new text of an idea. The id, the time and the source stay, so each reference to the id holds."""
+    check_text(idea)
+    text, table = rows()
+    found = [row for row in table if row["ID"] == idea_id]
+    if not found:
+        fail(f"no idea {idea_id}")
+    found[0]["Idea"] = idea
+    write(IDEAS, write_table(text, None, IDEAS_HEADER, table, IDEAS))
+    commit(f"Idea changed: {idea_id}", [IDEAS])
+    print(f"changed {idea_id}")
 
 
 def remove(ids, reason):
@@ -63,10 +81,12 @@ def run(args):
     require_main()
     if len(args) == 3 and args[0] == "add":
         add(args[1], args[2])
+    elif len(args) == 3 and args[0] == "edit":
+        edit(args[1], args[2])
     elif len(args) >= 3 and args[0] == "remove":
         remove(args[1:-1], args[-1])
     else:
-        fail('usage: python -m tools.ideas add "<idea>" <user|agent> | remove <id> [<id> ...] "<reason>"')
+        fail('usage: python -m tools.ideas add "<idea>" <user|agent> | edit <id> "<idea>" | remove <id> [<id> ...] "<reason>"')
 
 
 if __name__ == "__main__":

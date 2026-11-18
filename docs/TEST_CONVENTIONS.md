@@ -44,6 +44,7 @@ Each rule has an id. A review problem names the id.
 | T25 | A plan close runs the checks of its `Verification` section and the tests that the plan changed or added. Only the milestone close runs the whole suite. |
 | T22 | A test covers the changed code when it calls, spawns or reads a changed module, type or function. The `Verification` section of a plan lists these tests, so the plan close runs them. |
 | T26 | A test takes no fixed resource of the machine, for example a fixed port or a fixed file outside its own folder. It passes while other tests run. |
+| T31 | The configuration of the test runner ends a test after the per-test timeout. `python -m tools.test` ends a run after `test_run_limit` seconds and reports the hang. |
 | T23 | A failure of the whole suite at the milestone close is a bug. Run `bug-report` for it and fix it in a fix plan before the close. |
 
 ## Test selection

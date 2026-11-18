@@ -5,7 +5,7 @@ description: Implements the next step of the plan of this worktree with code, ev
 # step-run
 
 The rules are in `docs/DOCS_CONVENTIONS.md`, section Step execution, and in the code and test conventions. The main session orchestrates: it runs the tools of the step state, starts the agents and reads their reports, not the code.
-Change the directory to the worktree of the plan right before each agent start. Name the worktree in the task of the agent.
+Change the directory to the worktree of the plan right before each agent start. Name the worktree in the task of the agent. Name the dependency sources too: the path that `python -m tools.project source` prints, unless it prints `none`.
 
 ## Procedure
 1. Run `python -m tools.progress status` in the worktree of the plan. Take the step that it prints.
@@ -34,6 +34,7 @@ When a report names a test that the verification of the plan does not hold, ask 
 ## Work outside the step
 The implementor implements no need that the step text does not cover. It adds a row with the next id to `extensions.md` of the plan, with `Decision` and `Detail` empty.
 A worktree holds no write to a shared file of the milestone. A fact for the memory becomes a row of `extensions.md` with the prefix `Memory:`, a setup finding one with the prefix `Setup:`. The plan close saves them in the main repository.
+A report or a review can name a row of `docs/DEPENDENCIES.md` whose trigger the step meets and that its `Dependencies` cell does not name. Run `python -m tools.step_close set-dependencies <step> "<ids>"` with each id that the step meets. It adds the validation of each row that is a check to the verification of the plan.
 
 ## Important problem open after round 3
 1. For a non-breaking problem under `docs/REVIEW.md`, run `python -m tools.step_close unblock <step> "non-breaking, moved to the bug list"` and close the step. The plan close reports the problem as a bug.
@@ -46,7 +47,7 @@ A worktree holds no write to a shared file of the milestone. A fact for the memo
 8. Run `python -m tools.step_close unblock <step> "<answer of the user>"`. Continue as the user decided.
 
 ## Manual verification
-1. The implementor puts a package into `docs/plans/<plan>/tmp/manual-check/` and nowhere else. It holds the built application with each file that it needs, one start script per part, and a readme of max 20 lines. A milestone check package goes into the milestone package folder of `docs/DOCS_CONVENTIONS.md`.
+1. The implementor puts a package into `docs/plans/<plan>/tmp/manual-check/` and nowhere else. It holds the built application with each file that it needs, one start script per part and a readme of max 20 lines. A start script has the file type of `[start_script]` in `tools/project.toml` for the platform. A milestone check package goes into the milestone package folder of `docs/DOCS_CONVENTIONS.md`.
 2. The readme names what to start, what to check and what the user tells the agent.
 3. The implementor starts each script once from its full path and fixes the package when a script fails.
 4. Ask the user to run the check. Pass the answer with `python -m tools.step_close close <step> --answer <yes|no>`.

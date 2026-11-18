@@ -1,5 +1,5 @@
 {
-  "source_hash": "9d1b0bd798c934cb99645c4835bc190026676cff0f544d93cce7444e1894a93f",
+  "source_hash": "de076101fca3ee8ee391187bda615f0c5db709c58d6963d492a1a5f6ed69776c",
   "files": [
     ".claude/agents/implementor.md",
     ".claude/agents/researcher.md",
@@ -10,6 +10,7 @@
     ".claude/skills/dependency-add/SKILL.md",
     ".claude/skills/dependency-remove/SKILL.md",
     ".claude/skills/idea-add/SKILL.md",
+    ".claude/skills/idea-edit/SKILL.md",
     ".claude/skills/idea-remove/SKILL.md",
     ".claude/skills/memory-consolidate/SKILL.md",
     ".claude/skills/memory-save/SKILL.md",

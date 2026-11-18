@@ -1,8 +1,10 @@
 import datetime
 import os
+import subprocess
 import xml.etree.ElementTree as ElementTree
+from pathlib import Path
 
-from tools._lib import BUILTIN_COMMANDS, LOG_FOLDER, ROOT, commit, fail, git, load_project, main, progress_row, read, require_plan, run as shell, take_option, write
+from tools._lib import BUILTIN_COMMANDS, LOG_FOLDER, ROOT, any_match, commit, fail, git, load_project, main, progress_row, read, require_plan, take_option, write
 
 # the lines of output that the tool prints per failed test, and for a failed run without a report file
 FAILURE_LINES = 60
@@ -56,6 +58,64 @@ def log_path():
     return folder / f"{stamp}.log"
 
 
+def end_tree(pid):
+    """Ends a process and each process that it started."""
+    import psutil
+
+    try:
+        parent = psutil.Process(pid)
+        tree = parent.children(recursive=True) + [parent]
+    except psutil.NoSuchProcess:
+        return
+    for process in tree:
+        try:
+            process.kill()
+        except psutil.NoSuchProcess:
+            pass
+    psutil.wait_procs(tree, timeout=10)
+
+
+def run_limited(command, limit):
+    """Runs a command line with a time limit in seconds. On the limit and on each early stop it ends the whole process
+    tree. Returns the exit code, the output and whether the run hung."""
+    process = subprocess.Popen(command, cwd=ROOT, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    hung = False
+    try:
+        output, _ = process.communicate(timeout=limit)
+    except subprocess.TimeoutExpired:
+        hung = True
+        end_tree(process.pid)
+        output, _ = process.communicate()
+    except BaseException:
+        end_tree(process.pid)
+        raise
+    text = output.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
+    return (process.returncode or 1) if hung else process.returncode, text, hung
+
+
+def end_leftovers(patterns):
+    """Ends the test processes of this repository that still run, for example after a run whose tool was stopped.
+    A test process runs an executable that matches a glob of `test_binaries`. Returns one line per ended process."""
+    import psutil
+
+    if not patterns:
+        return []
+    lines = []
+    root = Path(ROOT).resolve()
+    for process in psutil.process_iter(["pid", "exe"]):
+        exe = process.info.get("exe")
+        if not exe or process.pid == os.getpid():
+            continue
+        try:
+            name = Path(exe).resolve().relative_to(root).as_posix()
+        except ValueError:
+            continue
+        if any_match(name, patterns):
+            end_tree(process.pid)
+            lines.append(f"ended the leftover test process {process.pid} {name}")
+    return lines
+
+
 def report_cases(path):
     """The test cases of a report file in the JUnit XML format as (name, failed, output)."""
     cases = []
@@ -76,9 +136,12 @@ def tail(text, limit=FAILURE_LINES):
     return "\n".join(lines[-limit:])
 
 
-def summary(code, output, report, names, log):
+def summary(code, output, report, names, log, limit=None):
     """The short result of a run for the agent, and the exit code. A passed run is one line. A failed run names each
-    failed test with the end of its output. The full output is in `log`."""
+    failed test with the end of its output. A run that reached the time limit `limit` is a hang. The full output is in
+    `log`."""
+    if limit:
+        return code, f"hang: the run reached the time limit of {limit} seconds and its processes were ended, full output: {log}\n{tail(output)}"
     cases = None
     if report and (ROOT / report).is_file():
         try:
@@ -122,16 +185,20 @@ def execute(kind, name="", plan=None, step_id=None):
         if names[0] not in table:
             fail(f"tools/project.toml: the command '{names[0]}' is not in [commands]")
         commands, label, report = [table[names[0]]], names[0], None
+    limit = project["test_run_limit"]
     code, results, outputs = 0, [], []
     for index, command in enumerate(commands):
         if report and (ROOT / report).is_file():
             os.remove(ROOT / report)
-        run_code, output = shell(command)
+        ended = end_leftovers(project.get("test_binaries", []))
+        run_code, output, hung = run_limited(command, limit)
+        output = "".join(line + "\n" for line in ended) + output
         log = log_path()
         write(log, output)
         outputs.append(output)
         wanted = names if len(commands) == 1 else names[index : index + 1]
-        run_code, text = summary(run_code, output, report, wanted if kind == "TEST" else [], log)
+        run_code, text = summary(run_code, output, report, wanted if kind == "TEST" else [], log, limit if hung else None)
+        text = "".join(line + "\n" for line in ended) + text
         code = code or run_code
         results.append(text)
     if step_id:

@@ -15,12 +15,12 @@ The caller gives you:
 - For a manual check, the package folder and the tuning requests of the user.
 
 ## Procedure
-1. Run `git rev-parse --show-toplevel`. Compare the result with the worktree or the repository that the task names. When they differ, stop and report both paths.
+1. Run `git rev-parse --show-toplevel`. Compare the result with the worktree or the repository that the task names. When they differ, stop and report both paths. Read files only in that worktree, in the main repository and in the dependency sources that the task names. Report a missing path instead of a search elsewhere.
 2. Read `docs/MEMORY.md`. Open each entry of the types user and feedback and follow it.
 3. Read `AGENTS.md`, `docs/CODE_CONVENTIONS.md`, `docs/TEST_CONVENTIONS.md` and the step row in `plan.md` of the plan folder.
 4. Read the design sections and the code that the step touches. Search the repository for code that the change can reuse.
 5. Do the `Action` of each dependency row of the step. The step can meet the trigger of a row that it does not name. Then do the action of that row too and name the row in your notes.
-6. Implement the task. Do not implement a need that the step text does not cover: add a row to `extensions.md` of the plan instead.
+6. Implement the task. Write no doc comment and no narrative comment unless a tool requires it. Do not implement a need that the step text does not cover: add a row to `extensions.md` of the plan instead.
 7. Never write a memory entry, a milestone file or a setup finding in the worktree of a plan. Add a row to `extensions.md` with the prefix `Memory:` or `Setup:` instead.
 8. Run the verification of the step with `python -m tools.test <name> --step <step>`. Add `--command` for a `COMMAND` check.
 9. Run the tests whose files you changed or added in one call: `python -m tools.test <name> [<name> ...]`. Run no other test.
@@ -33,6 +33,7 @@ The caller gives you:
 ## Runs
 - Run each build and each test in the foreground with the longest timeout that the shell tool allows. The shell tool moves a longer command into the background, and its output then lands outside the repository.
 - Never poll a file or a log in a loop, and never end your turn to wait for a run. The test tool writes the full log into the log folder of the repository; read a result there.
+- When the shell tool moves a run into the background, wait for it max the seconds of `test_run_limit` in `tools/project.toml`. Then report the hang and stop waiting.
 - Never start a second build while a build runs. It only waits on the build lock.
 
 ## Output

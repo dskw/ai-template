@@ -29,6 +29,7 @@ from tools._lib import (
     problem_errors,
     progress_row,
     dependency_errors,
+    dependency_rows,
     require_branch,
     require_plan,
     require_worktree,
@@ -296,6 +297,30 @@ def add_check(check, answer):
     print(f"the verification holds {check}")
 
 
+def set_dependencies(step_id, cell):
+    """Writes the Dependencies cell of an open step or a step in progress, for a row that a review found, and adds the
+    validation of each named row that is a check to the verification of the plan."""
+    plan, milestone, problems, row = context(step_id)
+    if row["State"] not in ("open", "in progress"):
+        fail(f"step {step_id} has state {row['State']}, only an open step or a step in progress takes new dependencies")
+    step = find_step(plan, step_id)
+    if step in plan["fixes"]:
+        fail(f"{step_id} is a fix step, it has no Dependencies cell")
+    cell = " ".join(cell.split())
+    errors = dependency_errors(cell, step_id)
+    if errors:
+        fail("\n".join(errors))
+    step["Dependencies"] = cell
+    plan["text"] = write_table(plan["text"], "Steps", STEP_HEADER, plan["steps"], plan["rel"])
+    validations = {item["ID"]: item["Validation"] for item in dependency_rows()}
+    for item in cell.split() if cell != "none" else []:
+        if parse_check(validations[item]):
+            plan["text"] = add_verification(plan["text"], validations[item])
+    save_plan(plan)
+    commit(f"Dependencies changed: {plan['id']} {step_id}", [plan["dir"]], verify=False)
+    print(f"step {step_id} names the dependencies {cell}")
+
+
 def close(step_id, answer, by=None):
     plan, milestone, problems, row = context(step_id)
     subject = f"Step closed: {plan['id']} {step_id}"
@@ -447,6 +472,8 @@ def run(args):
         set_text(*rest)
     elif command == "insert-refactor" and len(rest) == 3:
         insert_refactor(*rest, answer)
+    elif command == "set-dependencies" and len(rest) == 2:
+        set_dependencies(*rest)
     elif command == "add-check" and len(rest) == 1:
         add_check(rest[0], answer)
     else:
@@ -456,6 +483,7 @@ def run(args):
             ' | unblock <step> "<user answer>"'
             " | add-fix <problem> <step>"
             ' | set-text <step> "<text>"'
+            ' | set-dependencies <step> "<ids or none>"'
             ' | insert-refactor <feature> "<text>" "<verification>" [--answer yes|no]'
             ' | add-check "<check>" [--answer yes|no]'
         )

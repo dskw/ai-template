@@ -13,4 +13,5 @@ The ideas file and its rules are in `docs/DOCS_CONVENTIONS.md`, section Ideas fi
 
 ## Rules
 - Never save an idea as a memory.
+- An idea that extends an existing idea changes its text with `idea-edit`. It gets no new row.
 - An idea that fits the open milestone becomes a feature or an extension, not an idea.

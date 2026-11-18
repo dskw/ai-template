@@ -45,10 +45,12 @@ def language_errors(files, format_only=False):
             ]
         if not targets:
             continue
-        for key in ("format",) if format_only else ("format", "lint"):
+        keys = ("format",) if format_only else ("format", "lint", "comments")
+        for key in (key for key in keys if key in entry):
             code, output = shell(entry[key].replace("{files}", quote(targets)))
             if code != 0:
-                errors.append(f"{entry['name']} {key}:\n{output.rstrip()}")
+                rule = ", the comment rule of docs/CODE_CONVENTIONS.md" if key == "comments" else ""
+                errors.append(f"{entry['name']} {key}{rule}:\n{output.rstrip()}")
     return errors
 
 

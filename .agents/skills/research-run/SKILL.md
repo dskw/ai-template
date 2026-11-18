@@ -10,7 +10,7 @@ The frame of a research file is in `docs/DOCS_CONVENTIONS.md`, section Research 
 1. Write the question as one sentence. Name the feature or the decision that needs the answer.
 2. Search `docs/research/` for a file that answers the question. When one exists and its facts still hold, report it and stop.
 3. Choose a short name in lower case with hyphens. Run `python -m tools.research start <name>`. It prints the path of the file.
-4. Start the `researcher` agent with the question, the path of the file, the design sections and the code paths that the question touches. Name `docs/MEMORY.md` in the task.
+4. Start the `researcher` agent with the question, the path of the file, the design sections and the code paths that the question touches. Name the dependency sources: the path that `python -m tools.project source` prints, unless it prints `none`. Name `docs/MEMORY.md` in the task.
 5. Read its report, not its sources.
 6. Start the `reviewer` agent with the effort `medium`, the scope document review and the path of the file. Name the question.
 7. When the review posted a problem, start the `researcher` agent with the problems. Run a second review only after an `Important` problem.

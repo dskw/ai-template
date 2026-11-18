@@ -23,6 +23,7 @@ ci = "none"
 test_suite = "python fake_runner.py"
 test_command = "python fake_runner.py {names}"
 test_report = "build/junit.xml"
+test_run_limit = 60
 test_support = "tests/support"
 
 [[language]]
@@ -35,7 +36,12 @@ lint = "python fake_runner.py --none"
 """
 
 # a test runner for the scratch project: the test <name> is the file tests/<name>.fk and passes when it holds "pass"
-RUNNER = '''import pathlib, sys
+RUNNER = '''import pathlib, subprocess, sys, time
+if pathlib.Path("tests/hang.fk").exists():
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(600)"])
+    pathlib.Path("build").mkdir(exist_ok=True)
+    pathlib.Path("build/child.pid").write_text(str(child.pid))
+    time.sleep(600)
 names = [name for name in sys.argv[1:] if not name.startswith("--")]
 if "--none" in sys.argv:
     sys.exit(0)
@@ -511,6 +517,51 @@ class Bindings(unittest.TestCase):
         self.assertEqual(guard(f"ls {outside.as_posix()}/bin")[0], 0)
         repo.write("tools/project.toml", PROJECT)
 
+    def test_dependency_source_and_start_script(self):
+        repo = self.repo
+        self.assertEqual(repo.tool("project", "source").strip(), "none")
+        binding = 'dependency_source = "deps/src"\n[start_script]\nwindows = ".cmd"\n[[language]]'
+        repo.write("tools/project.toml", PROJECT.replace("[[language]]", binding))
+        self.assertIn("[start_script] maps each platform", repo.tool("project", "check", fails=True))
+        repo.write("tools/project.toml", PROJECT.replace("[[language]]", binding.replace(".cmd", "bat")))
+        repo.tool("project", "check")
+        self.assertEqual(repo.tool("project", "source").strip(), (repo.root / "deps/src").as_posix())
+        repo.write("tools/project.toml", PROJECT)
+
+    def test_comment_check_refuses_a_comment(self):
+        repo = self.repo
+        repo.write("comment_check.py", "import sys\nsys.exit('#' in open('src/main.fk').read())\n")
+        repo.write("tools/project.toml", PROJECT + 'comments = "python comment_check.py"\n')
+        repo.write("src/main.fk", "start\n# the start of the part\n")
+        self.assertIn("comments, the comment rule", repo.tool("check", "src/main.fk", fails=True))
+        repo.write("src/main.fk", "start\n")
+        repo.tool("check", "src/main.fk")
+        repo.write("tools/project.toml", PROJECT)
+
+    def test_idea_edit_keeps_the_id(self):
+        repo = self.repo
+        repo.tool("ideas", "add", "The parts glow at night", "user")
+        row = next(line for line in repo.read("docs/plans/IDEAS.md").split("\n") if line.startswith("| IDEA"))
+        idea_id = row.split(" | ")[0][2:]
+        self.assertIn(f"changed {idea_id}", repo.tool("ideas", "edit", idea_id, "The parts glow at night and in caves"))
+        self.assertIn(row.replace("at night |", "at night and in caves |"), repo.read("docs/plans/IDEAS.md"))
+        self.assertIn("1 to 25 words", repo.tool("ideas", "edit", idea_id, "word " * 26, fails=True))
+        self.assertIn("no idea IDEA999", repo.tool("ideas", "edit", "IDEA999", "A text", fails=True))
+        self.assertEqual(repo.git("status", "--porcelain", "--untracked-files=no"), "")
+
+    def test_hung_run_ends_its_process_tree(self):
+        import psutil
+
+        repo = self.repo
+        repo.write("tools/project.toml", PROJECT.replace("test_run_limit = 60", "test_run_limit = 5"))
+        repo.write("tests/hang.fk", "pass\n")
+        output = repo.tool("test", "hang", fails=True)
+        self.assertIn("hang: the run reached the time limit of 5 seconds", output)
+        child = int(repo.read("build/child.pid"))
+        self.assertFalse(psutil.pid_exists(child) and psutil.Process(child).status() != psutil.STATUS_ZOMBIE)
+        (repo.root / "tests/hang.fk").unlink()
+        repo.write("tools/project.toml", PROJECT)
+
     def test_ask_rule_for_the_answer_of_the_user(self):
         self.assertIn('"Bash(* --answer *)"', self.repo.read(".claude/settings.json"))
 
@@ -599,6 +650,23 @@ class RunningPlanChanges(unittest.TestCase):
         # a test that a step added gets its line in the verification of the running plan
         repo.tool("step_close", "add-check", "TEST extra passes", "--answer", "yes", where=tree)
         self.assertIn("- TEST extra passes", repo.read(plan, tree))
+        self.assertEqual(repo.git("status", "--porcelain", where=tree), "")
+
+    def test_dependencies_of_a_running_step(self):
+        repo = Scratch()
+        self.addCleanup(repo.remove)
+        repo.milestone()
+        repo.tool("dependency", "add", "A step adds state", "Carry it", "TEST state passes", "M001")
+        folder, plan = repo.plan("feature", "alpha", "F01", "alpha")
+        plan_id, tree = repo.commit_plan(folder)
+        repo.tool("step_close", "start", "S01", where=tree)
+        self.assertIn("DEP-07 is not an id", repo.tool("step_close", "set-dependencies", "S01", "DEP-07", where=tree, fails=True))
+        self.assertIn("names the dependencies DEP-01 DEP-02", repo.tool("step_close", "set-dependencies", "S01", "DEP-01 DEP-02", where=tree))
+        text = repo.read(plan, tree)
+        self.assertIn("| S01 | F01 | Add the part alpha | TEST alpha passes | DEP-01 DEP-02 |", text)
+        self.assertIn("- TEST state passes", text)
+        self.assertNotIn("- The reviewer", text)
+        self.assertIn(f"Dependencies changed: {plan_id} S01", repo.git("log", "-1", "--format=%s", where=tree))
         self.assertEqual(repo.git("status", "--porcelain", where=tree), "")
 
     def test_manual_line_of_the_plan_verification(self):

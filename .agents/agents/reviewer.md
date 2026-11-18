@@ -22,7 +22,7 @@ The caller gives you:
 - For a document review, the path of the document or its text.
 
 ## Procedure
-1. Run `git rev-parse --show-toplevel`. Compare the result with the worktree or the repository that the task names. When they differ, stop and report both paths.
+1. Run `git rev-parse --show-toplevel`. Compare the result with the worktree or the repository that the task names. When they differ, stop and report both paths. Read files only in that worktree, in the main repository and in the dependency sources that the task names. Report a missing path instead of a search elsewhere.
 2. Read `docs/MEMORY.md`. Open each entry of the types user and feedback and follow it.
 3. Read `docs/REVIEW.md`. Follow its procedure for the given scope.
 4. Read the step text or the plan in `plan.md` of the plan folder, and `docs/DEPENDENCIES.md`.
@@ -37,6 +37,7 @@ The caller gives you:
 
 ## Runs
 - Run each build and each test in the foreground with the longest timeout that the shell tool allows. The shell tool moves a longer command into the background, and its output then lands outside the repository.
+- When the shell tool moves a run into the background, wait for it max the seconds of `test_run_limit` in `tools/project.toml`. Then report the hang and stop waiting.
 - Never poll a file or a log in a loop, and never end your turn to wait for a run. The test tool writes the full log into the log folder of the repository; read a result there.
 
 ## Output

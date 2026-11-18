@@ -267,6 +267,7 @@ closed:
 | D261 | A refactor step adds no instance, so the row `DEP-01` does not apply to it. |
 | D202 | `Dependencies` holds the id of each row of `docs/DEPENDENCIES.md` whose trigger the step meets, or `none`. The tools refuse an empty cell. |
 | D203 | The `Verification` section of the plan lists the validation of each dependency that a step names, when it is a check. |
+| D269 | `python -m tools.step_close set-dependencies` writes the `Dependencies` cell of an open step or a step in progress. It adds the validation of each named row that is a check to the `Verification` section. |
 | D50 | `status` is `draft`, `in progress`, `blocked` or `closed`. |
 | D51 | A plan references ids of its own milestone only. |
 | D52 | `python -m tools.plan_close` writes `done`: the ids whose acceptance check passed at plan close. |
@@ -608,6 +609,7 @@ version: 1.12.0
 | D191 | `Time` is the local date and time in the form `2026-11-14 15:30`. `Source` is `user` or `agent`. |
 | D192 | `Idea` is one sentence of max 25 words that names what the user sees. |
 | D193 | A milestone that plans an idea removes its row with the milestone id as reason. |
+| D268 | `python -m tools.ideas edit` writes the new text of an idea. The id, the time and the source stay. |
 
 ## Research file
 A research file answers one question before the work on a feature. The skill `research-run` writes it through the `researcher` agent.
@@ -835,6 +837,7 @@ ci = "none"
 test_suite = "pytest"
 test_command = "pytest -n auto {names}"
 test_report = "build/junit.xml"
+test_run_limit = 1800
 test_support = "tests/support"
 dependency_source = ".venv/Lib/site-packages"
 
@@ -845,9 +848,14 @@ source = ["src"]
 tests = ["tests"]
 format = "ruff format --check {files}"
 lint = "ruff check {files}"
+comments = "python scripts/comment_check.py {files}"
 
 [commands]
 build = "python -m build"
+
+[start_script]
+windows = "bat"
+linux = "sh"
 ```
 
 | ID | Rule |
@@ -862,7 +870,11 @@ build = "python -m build"
 | D172 | `{files}` is optional. The tool replaces it with one changed file, or with the source and test folders. |
 | D173 | Each command is a command line of the stack of the project, for example `cargo test {name}` or `cargo clippy`. |
 | D174 | A project with a second test runner binds it as an entry of `[commands]`. |
-| D182 | `dependency_source` is optional. It names the folder with the source of the installed dependencies. |
+| D182 | `dependency_source` is optional. It names the folder with the source of the installed dependencies. `python -m tools.project source` prints its absolute path in the main repository, also in a worktree. |
+| D270 | `comments` is optional. It is a check command that refuses each comment without a tool reason. `python -m tools.check` runs it with `format` and `lint`. |
+| D271 | `test_run_limit` is the time limit of one test run in seconds. The per-test timeout lives in the configuration of the test runner. |
+| D272 | `test_binaries` is optional. It lists the globs of the test executables. Before a run, `python -m tools.test` ends each process of such an executable that still runs. |
+| D273 | `[start_script]` is optional. It maps each platform to the file type of a start script of a manual check package, for example `windows = "bat"`. |
 | D259 | `toolchain_folders` is optional. It lists the folders of the tool chain outside the repository that a command of an agent names. |
 
 ## Tool reference
@@ -876,19 +888,19 @@ Each tool runs as `python -m tools.<name>`. A tool without arguments prints its 
 | `pre_write`, `post_write` | | Hook entries. Block a protected write. Run the generator and the checks for a changed file. |
 | `timing` | `start`, `end`, `report [<log>]` | Hook entries that log the duration of each tool call of a session in `.logs/timing/` of the main repository. The report prints the time per tool and the slowest calls. |
 | `agent_guard` | `<bash or edit>` | Hook entry. Reads the agent from `agent_type` of the hook input. Checks a call against `bash_allow` and `edit_allow`. Refuses a command of an agent that names a path outside the repository. |
-| `project` | `init`, `update`, `check` | Validates the bindings and commits them. |
+| `project` | `init`, `update`, `check`, `source` | Validates the bindings and commits them. Prints the absolute path of the dependency sources. |
 | `progress` | none, `check`, `status`, `add-feature`, `drop-feature`, `set-goal`, `out-of-scope <add or remove>`, `add-bug`, `fix-bug`, `drop-bug` | Writes `PROGRESS.md` and the feature tables. Prints the next step in a worktree and the active plans in the main repository. Writes features, bugs, the goal and the out of scope list in the main repository. |
 | `milestone_create` | `start <name>`, `commit` | Creates the branch and the draft file. Validates and commits the milestone. |
 | `plan_create` | `start <feature, fix or refactor> <name>`, `reviewed`, `commit`, `worktree <plan>` | Creates the draft folder. Records a document review. Validates and commits the plan, then creates its branch and its worktree. |
 | `review_yield` | none | Counts the reviews of the archived plans per kind and round, their problems, the plans per topic and the bugs fixed later. |
-| `step_close` | `start`, `review`, `close [--answer] [--by agent]`, `revert`, `block`, `unblock`, `add-fix`, `set-text <step> "<text>"` | Makes each state change of a step, in the worktree of the plan. Writes the new text of an open step. |
+| `step_close` | `start`, `review`, `close [--answer] [--by agent]`, `revert`, `block`, `unblock`, `add-fix`, `set-text <step> "<text>"`, `set-dependencies <step> "<ids>"` | Makes each state change of a step, in the worktree of the plan. Writes the new text of an open step and the dependencies of an open step or a step in progress. |
 | `plan_close` | In the worktree: `sync`, `reviewed`, `review-passed`, `block`, `unblock`. In the main repository: `merge <plan>`, `tuning`, `check`, `verify-bug`, none | Makes each state change of the plan close. |
 | `milestone_close` | none, `check`, `migrate <id>` | Closes, merges or migrates a milestone. |
 | `approve` | `<plan> <step or close>` | Writes an approval record of the user. |
-| `test` | none, `<name> [<name> ...]`, `<name> --command`, `--step <step>` | Runs the suite, the named tests in one call of the runner, or a command. Prints one line for a pass and the failed tests for a failure. Writes the full output to the evidence or to a log in `.logs/test/`. |
+| `test` | none, `<name> [<name> ...]`, `<name> --command`, `--step <step>` | Runs the suite, the named tests in one call of the runner, or a command. Prints one line for a pass and the failed tests for a failure. Writes the full output to the evidence or to a log in `.logs/test/`. Ends a run after `test_run_limit` with its process tree, and ends leftover test processes before a run. |
 | `dependency` | `add "<trigger>" "<action>" "<validation>" "<source>"`, `change <id> "<trigger>" "<action>" "<validation>" "<source>"`, `remove <id> "<reason>"` | Adds a row with the next id to `docs/DEPENDENCIES.md`, changes the cells of a row and removes one in the close of a refactor plan. Commits the file. |
 | `memory_index`, `memory_lint` | none, `show`, `--strict` | Writes and checks the memory index and the entries. |
-| `ideas` | `add "<idea>" <user or agent>`, `remove <id> [<id> ...] "<reason>"` | Adds an idea with the next id and removes ideas from `docs/plans/IDEAS.md`. Commits the file. |
+| `ideas` | `add "<idea>" <user or agent>`, `edit <id> "<idea>"`, `remove <id> [<id> ...] "<reason>"` | Adds an idea with the next id, changes the text of an idea and removes ideas from `docs/plans/IDEAS.md`. Commits the file. |
 | `research` | `start <name>`, `check [<id> ...]`, `commit <id>` | Starts a research file with the next id. Checks the frame of the research files. Commits one file. |
 | `check_encoding`, `fix_encoding` | none, `<files>` | Checks and repairs the encoding. |
 | `docs_lint` | none, `<files>` | Runs Vale and the project content check. |

@@ -9,7 +9,7 @@ The rules are in `docs/DOCS_CONVENTIONS.md`, section Plan close. The problem for
 ## Procedure
 1. Run `python -m tools.plan_close reviewed` in the worktree of the plan. It prints the review round.
 2. Start the `reviewer` agent in a fresh context with the scope plan review.
-3. Give it the plan folder, the notes of the implementor and the round. Name each test that failed at the plan merge. In a later round, add the problem rows of the round before with their answers.
+3. Give it the plan folder, the notes of the implementor and the round. Name each test that failed at the plan merge. Name the dependency sources: the path that `python -m tools.project source` prints, unless it prints `none`. In a later round, add the problem rows of the round before with their answers.
 4. Write one row per posted problem into the `Problems` table with `plan` in the `Step` column. Run `python -m tools.check` with the path of the problems file and fix each sentence that it names.
 5. In a later round, write the result of the reviewer into the `Check` cell of each problem of the round before.
 6. Leave the answer of a `Pre-existing` problem empty. The plan close reports it as a bug.

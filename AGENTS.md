@@ -30,6 +30,7 @@ Run `python -m tools.progress status` at session start when no hook injected its
 - `bug-fix`: verifies the fixed bugs of a fix plan. `plan-close` calls it.
 - `milestone-close`: closes the open milestone, or closes it early on user request.
 - `idea-add`: records an idea for a later milestone.
+- `idea-edit`: changes the text of an idea and keeps its id.
 - `idea-remove`: removes planned or dropped ideas. `milestone-create` calls it.
 - `memory-save`: creates or updates a memory.
 - `memory-consolidate`: reviews, merges and deletes memories. `plan-close` calls it.

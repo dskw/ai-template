@@ -9,11 +9,13 @@ from tools._lib import (
     ROOT,
     active_plans,
     branch,
+    load_project,
     commit,
     fail,
     git,
     git_ok,
     main,
+    main_root,
     merging,
     read,
     read_table,
@@ -22,7 +24,7 @@ from tools._lib import (
     tool,
 )
 
-REQUIRED = ["product_terms", "start_version", "main_branch", "ci", "test_suite", "test_command", "test_support"]
+REQUIRED = ["product_terms", "start_version", "main_branch", "ci", "test_suite", "test_command", "test_run_limit", "test_support"]
 LANGUAGE = ["name", "extensions", "source", "tests", "format", "lint"]
 LANGUAGE_HEADER = ["Language", "Formatter", "Linter", "Naming", "Source", "Tests"]
 RUNNER_HEADER = ["Runner", "Support folder"]
@@ -53,11 +55,20 @@ def errors():
         for key in LANGUAGE:
             if key not in entry:
                 found.append(f"tools/project.toml: [[language]] {entry.get('name', '')}: the key '{key}' is missing")
+        if "comments" in entry and not isinstance(entry["comments"], str):
+            found.append(f"tools/project.toml: [[language]] {entry.get('name', '')}: comments must be one command line")
     found += folder_errors(project, languages)
     if "{name}" not in project["test_command"] and "{names}" not in project["test_command"]:
         found.append("tools/project.toml: test_command must hold {name} or {names}")
     if "test_report" in project and not isinstance(project["test_report"], str):
         found.append("tools/project.toml: test_report must be the path of one report file")
+    if not isinstance(project["test_run_limit"], int) or isinstance(project["test_run_limit"], bool) or project["test_run_limit"] < 1:
+        found.append("tools/project.toml: test_run_limit must be a number of seconds")
+    if not is_text_list(project.get("test_binaries", [])):
+        found.append("tools/project.toml: test_binaries must be a list of globs")
+    start_script = project.get("start_script", {})
+    if not isinstance(start_script, dict) or not all(isinstance(value, str) and value and "." not in value for value in start_script.values()):
+        found.append("tools/project.toml: [start_script] maps each platform to a file type without dot, for example windows = \"bat\"")
     if not all(isinstance(value, str) for value in project.get("commands", {}).values()):
         found.append("tools/project.toml: each entry of [commands] must be one command line")
     if project["ci"] != "none" and not (ROOT / project["ci"]).is_file():
@@ -77,6 +88,10 @@ def errors():
     if not read_table(read(test), "Test runner", RUNNER_HEADER, "docs/TEST_CONVENTIONS.md"):
         found.append("docs/TEST_CONVENTIONS.md: the Test runner table is empty")
     return found
+
+
+def is_text_list(value):
+    return isinstance(value, list) and all(isinstance(item, str) for item in value)
 
 
 def folder_errors(project, languages):
@@ -141,9 +156,18 @@ def bind(kind):
     print(message)
 
 
+def source():
+    """The absolute path of the dependency sources, resolved from the main repository. A worktree of a plan holds no
+    copy of them."""
+    folder = load_project().get("dependency_source")
+    print((main_root() / folder).resolve().as_posix() if folder else "none")
+
+
 def run(args):
     command = args[0] if args else ""
-    if command == "check":
+    if command == "source":
+        source()
+    elif command == "check":
         found = errors()
         if found:
             fail("\n".join(found))
@@ -151,7 +175,7 @@ def run(args):
     elif command in ("init", "update"):
         bind(command)
     else:
-        fail("usage: python -m tools.project <init|update|check>")
+        fail("usage: python -m tools.project <init|update|check|source>")
 
 
 if __name__ == "__main__":

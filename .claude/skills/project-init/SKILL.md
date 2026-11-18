@@ -26,13 +26,15 @@ The procedure and the formats are in `docs/DOCS_CONVENTIONS.md`, section Project
 | 1 | Where does the project information come from? | single choice | I describe it now. I add documents to `docs/design/` first. |
 | 2 | What is the product? | free text, one to three sentences | The derived text to confirm, or a new text. |
 | 3 | Which target platforms? | multiple select | The derived platforms. The common platforms for the product type. |
-| 4 | Which programming languages and frameworks? | multiple select | The derived stack. The common stacks for the platforms. |
-| 5 | Which formatter, linter and test runner per language? | single choice per language | The standard tool of the language. One alternative. |
-| 6 | Is the product deployed? | single choice | Not deployed. Deployed, the user writes `DEPLOYMENT.md` now. |
-| 7 | Does the project have a CI pipeline? | single choice | None, the project lives on the local machine. A pipeline on the host that the user names. |
-| 8 | Which MCP servers? | multiple select | The suggested servers. None. |
-| 9 | Where is the source of the installed dependencies? | single choice | The derived folder of the stack. None. |
-| 10 | Which groups of its domain does the wiki need? | multiple select | The derived groups, for example content and tuning values. None. |
+| 4 | Which file type has a start script on each platform? | single choice per platform | The common type, for example `bat` on Windows and `sh` on Linux. |
+| 5 | Which programming languages and frameworks? | multiple select | The derived stack. The common stacks for the platforms. |
+| 6 | Which formatter, linter, comment check and test runner per language? | single choice per language | The standard tool of the language. One alternative. A comment check is a command that refuses each comment without a tool reason. |
+| 7 | Which time limits end a hung test and a hung test run? | single choice | 5 minutes per test and 30 minutes per run. Limits that the user names. |
+| 8 | Is the product deployed? | single choice | Not deployed. Deployed, the user writes `DEPLOYMENT.md` now. |
+| 9 | Does the project have a CI pipeline? | single choice | None, the project lives on the local machine. A pipeline on the host that the user names. |
+| 10 | Which MCP servers? | multiple select | The suggested servers. None. |
+| 11 | Where is the source of the installed dependencies? | single choice | The derived folder of the stack. None. |
+| 12 | Which groups of its domain does the wiki need? | multiple select | The derived groups, for example content and tuning values. None. |
 
 Ask question 1 only when `docs/design/` holds no document.
 
@@ -49,15 +51,16 @@ Prepare these writes. Do not write a file before the confirmation.
 2. The `Project` section of `AGENTS.md`: one to three sentences on the product and a link to `docs/design/`.
 3. The `Languages` table of `docs/CODE_CONVENTIONS.md`: one row per language, with the naming rules.
 4. The `Test runner` table of `docs/TEST_CONVENTIONS.md`.
-5. `tools/project.toml` in the format of `docs/DOCS_CONVENTIONS.md`, with the command lines of the chosen tools and `dependency_source` when the user named a folder.
-6. Use the start version of the example in `docs/DOCS_CONVENTIONS.md` unless the user answered that the product is in deployment.
-7. Set `main_branch` to the output of `git branch --show-current`.
-8. The pipeline file that runs `python -m tools.check` and `python -m tools.test`, only when the user named a pipeline.
-9. The rows of the Non-ASCII allowlist in `docs/CODE_CONVENTIONS.md` that the stack needs, for example localization files.
-10. `.agents/mcp.yaml` with the approved servers. Write names of environment variables, never a value.
-11. The overview `docs/wiki/README.md` in the form of the wiki rules, with the product, its parts and the page map.
-    The page map has one row per page of the default groups and one row per planned page of each group of question 10.
-12. One page per row of the page map with its headings, and `docs/wiki/_sidebar.md` with each page under its group.
+5. `tools/project.toml` in the format of `docs/DOCS_CONVENTIONS.md`, with the command lines of the chosen tools, `comments` per language with a comment check, `test_run_limit`, `[start_script]` and `dependency_source` when the user named a folder. Add `test_binaries` when the test runner builds its own test executables.
+6. The per-test timeout in the configuration of the test runner.
+7. Use the start version of the example in `docs/DOCS_CONVENTIONS.md` unless the user answered that the product is in deployment.
+8. Set `main_branch` to the output of `git branch --show-current`.
+9. The pipeline file that runs `python -m tools.check` and `python -m tools.test`, only when the user named a pipeline.
+10. The rows of the Non-ASCII allowlist in `docs/CODE_CONVENTIONS.md` that the stack needs, for example localization files.
+11. `.agents/mcp.yaml` with the approved servers. Write names of environment variables, never a value.
+12. The overview `docs/wiki/README.md` in the form of the wiki rules, with the product, its parts and the page map.
+    The page map has one row per page of the default groups and one row per planned page of each group of question 12.
+13. One page per row of the page map with its headings, and `docs/wiki/_sidebar.md` with each page under its group.
 
 ## Confirmation
 1. Show the user a summary of all writes.

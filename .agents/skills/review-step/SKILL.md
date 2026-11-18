@@ -12,7 +12,7 @@ The problem format is in `docs/REVIEW.md`. The file format is in `docs/DOCS_CONV
 3. Start the `reviewer` agent in a fresh context with the scope step review.
 4. Give it the plan folder, the step id, the start commit, the evidence file, the notes of the implementor and the round.
 5. Name the design sections that the step touches, not whole documents. Name the dependency rows of the step, the test command and its duration.
-6. Name the folder `dependency_source` of `tools/project.toml` when the binding exists.
+6. Name the dependency sources: the path that `python -m tools.project source` prints, unless it prints `none`.
 7. In a later round, give it the new diff only and the problem rows of the round before with their answers.
 8. Write one row per posted problem into the `Problems` table. Use the next free problem id.
 9. Fill `Step`, `Round`, `Severity`, `Rule`, `Topic`, `Location`, `Trigger`, `Class` and `Fix`. Leave `Answer` and `Check` empty. Run `python -m tools.check` with the path of the problems file and fix each sentence that it names.
