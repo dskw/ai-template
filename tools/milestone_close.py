@@ -6,7 +6,6 @@ from tools import milestone_create, progress, test
 from tools._lib import (
     CHANGELOG,
     MILESTONES,
-    PLANS,
     Problems,
     active_plans,
     ask,
@@ -156,7 +155,7 @@ def clear_tmp():
         fail(f"{rel(TMP)} is in use: close the manual check package, then run the close again")
 
 
-def archive(milestone, paths=None):
+def archive(milestone):
     milestone["meta"]["status"] = "closed"
     milestone["meta"]["closed"] = today()
     save_milestone(milestone)
@@ -164,7 +163,7 @@ def archive(milestone, paths=None):
     os.rename(source, MILESTONES / "archive" / source.name)
     progress.regenerate()
     subject = f"Milestone closed: {milestone['id']}"
-    commit(subject, paths and [source, *paths])
+    commit(subject)
     print(subject)
 
 
@@ -257,6 +256,8 @@ def migrate(new_id):
             fail(f"plan {active_plans()[0]['id']} is active, close it first")
         if new["meta"]["status"] != "draft":
             fail(f"{new['rel']} must have status draft")
+        if not git_ok("cat-file", "-e", f"HEAD:{new['rel']}") or git("status", "--porcelain", "--", new["rel"]):
+            fail(f"the draft has changes without a commit, run python -m tools.milestone_create commit {new_id}")
         moving = [row for row in old["features"] if row["State"] in ("open", "in progress")]
         errors = milestone_create.validate(new, milestones())
         for number, row in enumerate(moving):
@@ -273,17 +274,10 @@ def migrate(new_id):
         for number, row in enumerate(moving, 1):
             row["State"], row["Plans"] = "migrated", f"{new_id}-F{number:02d}"
         old["bugs"] = []
-        archive(old, [MILESTONES / "archive", MILESTONES / "PROGRESS.md", PLANS])
+        archive(old)
     merge()
-    new = find_milestone(new_id)
-    if new["meta"]["status"] == "draft":
-        require_branch(load_project()["main_branch"])
-        git("checkout", "-b", milestone_branch(new))
-        new["meta"]["status"] = "open"
-        save_milestone(new)
-        progress.regenerate()
-        commit(f"Milestone created: {new_id}")
-        print(f"Milestone created: {new_id}")
+    if find_milestone(new_id)["meta"]["status"] == "draft":
+        milestone_create.open_draft(new_id)
 
 
 def run(args):

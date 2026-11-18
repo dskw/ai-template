@@ -19,7 +19,7 @@ Run `python -m tools.progress status` at session start when no hook injected its
 - `project-init`: binds the setup to the project. Use it once, before the first milestone.
 - `project-update`: changes a project binding. Use it for a new language, tool, pipeline or MCP server.
 - `milestone-propose`: proposes the next milestone. Use it when the user asks for suggestions.
-- `milestone-create`: writes a milestone. Use it when no milestone is open.
+- `milestone-create`: writes a milestone. It opens it when no milestone is open, else it stays a draft for later.
 - `plan-create`: writes a plan for open features, for bugs or for a refactor, and creates its worktree. Use it in the main repository.
 - `step-run`: implements the step that the status prints. Use it in the worktree of the plan.
 - `research-run`: answers one open question with a research file. `plan-create` and a research step call it.

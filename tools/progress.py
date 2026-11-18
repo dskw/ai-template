@@ -64,9 +64,11 @@ def derive(milestone, all_plans):
 
 
 def progress_text(all_milestones):
+    # a draft counts from its first commit on, so the table never names a file that the repository does not hold
+    tracked = set(git("ls-files", "--", rel(MILESTONES)).splitlines())
     rows = []
     for milestone in all_milestones:
-        if milestone["meta"]["status"] == "draft":
+        if milestone["meta"]["status"] == "draft" and milestone["rel"] not in tracked:
             continue
         rows.append(
             {
@@ -121,10 +123,6 @@ def check_errors():
         errors.append("two milestone files have status open: " + " ".join(opened))
     for milestone in all_milestones:
         name, status = milestone["rel"], milestone["meta"]["status"]
-        if status == "draft":
-            if name in tracked:
-                errors.append(f"{name}: a committed milestone file has status draft")
-            continue
         if milestone["archived"] and status != "closed":
             errors.append(f"{name}: an archived milestone has status {status}")
         if not milestone["archived"] and status == "closed":
@@ -151,6 +149,8 @@ def check_errors():
         if not milestone:
             errors.append(f"{name}: milestone {plan['meta']['milestone']} does not exist")
             continue
+        if milestone["meta"]["status"] == "draft":
+            errors.append(f"{name}: the milestone {milestone['id']} is a draft, only the open milestone has plans")
         pattern = FEATURE_ID if plan["field"] == "features" else BUG_ID
         for item in plan["ids"]:
             if not pattern.match(item):
@@ -243,6 +243,13 @@ def main_status(milestone):
         print("no active plan")
     if len(found) > 1:
         print("each agent starts in the worktree of its plan: change the directory right before each agent start")
+    open_status(milestone, found)
+    for draft in milestones():
+        if draft["meta"]["status"] == "draft" and not draft["archived"]:
+            print(f"draft milestone {draft['id']} {draft['name']}")
+
+
+def open_status(milestone, found):
     if not milestone:
         print("no open milestone")
         return

@@ -170,13 +170,14 @@ class Scratch:
         return output
 
     def milestone(self):
-        self.tool("milestone_create", "start", "demo")
+        self.tool("milestone_create", "draft", "demo")
         name = "docs/milestones/M001-demo.md"
         self.edit(name, r"## Goal\n", "## Goal\nThe user gets the parts alpha and beta.\n")
         self.add_row(name, "Features", "| F01 | Part alpha exists | new | TEST alpha passes | | open |")
         self.add_row(name, "Features", "| F02 | Part beta exists | new | TEST beta passes | | open |")
         self.edit(name, r"## Out of scope\n", "## Out of scope\n- Part gamma\n")
-        self.tool("milestone_create", "commit")
+        self.tool("milestone_create", "commit", "M001")
+        self.tool("milestone_create", "open", "M001")
 
     def plan(self, kind, name, feature, test, dependencies="none"):
         """Writes and commits a plan with one step. Returns the plan id and its worktree."""
@@ -343,6 +344,68 @@ class ParallelPlans(unittest.TestCase):
         self.assertEqual(repo.git("branch", "--show-current"), "main")
         repo.git("merge-base", "--is-ancestor", tip, "milestone/M001")
         self.assertEqual(repo.git("branch", "--list", "milestone/*"), "")
+
+
+class DraftMilestones(unittest.TestCase):
+    """A draft milestone beside the open one: its commits, its removal and its opening by a premature close."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.repo = Scratch()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.repo.remove()
+
+    def test_draft_beside_the_open_milestone(self):
+        repo = self.repo
+        repo.milestone()
+        self.assertEqual(repo.git("branch", "--show-current"), "milestone/M001-demo")
+        name = "docs/milestones/M002-later.md"
+        self.assertIn(f"draft: {name}", repo.tool("milestone_create", "draft", "later"))
+        self.assertIn("Goal section is empty", repo.tool("milestone_create", "commit", "M002", fails=True))
+        repo.edit(name, r"## Goal\n", "## Goal\nThe user gets the part delta.\n")
+        repo.add_row(name, "Features", "| F01 | Part delta exists | new | TEST delta passes | | open |")
+        self.assertNotIn("M002", repo.read("docs/milestones/PROGRESS.md"))
+        self.assertIn("Milestone drafted: M002", repo.tool("milestone_create", "commit", "M002"))
+        self.assertEqual(repo.git("status", "--porcelain"), "")
+        self.assertEqual(repo.git("branch", "--list", "milestone/M002*"), "")
+        self.assertIn("M002 later | 1 | 0 | 0 | **draft**", repo.read("docs/milestones/PROGRESS.md"))
+        self.assertIn("draft milestone M002 later", repo.tool("progress", "status"))
+        repo.tool("progress", "check")
+        # only one milestone is open, and only the open milestone takes a plan
+        self.assertIn("M001 is open", repo.tool("milestone_create", "open", "M002", fails=True))
+        folder, plan = repo.plan("feature", "delta", "F01", "delta")
+        self.assertIn("milestone: M001", repo.read(plan))
+        shutil.rmtree(repo.root / folder)
+        # a committed draft stays editable, and only the tool commits a change
+        repo.edit(name, r"Part delta exists", "Part delta works")
+        repo.git("add", "-A")
+        self.assertIn("only a tool commits these files", repo.tool("check", "--staged", fails=True))
+        repo.git("reset", "-q")
+        self.assertIn("Milestone drafted: M002", repo.tool("milestone_create", "commit", "M002"))
+        # a draft leaves through the tool
+        never = "docs/milestones/M003-never.md"
+        repo.tool("milestone_create", "draft", "never")
+        repo.edit(never, r"## Goal\n", "## Goal\nThe user gets nothing.\n")
+        repo.add_row(never, "Features", "| F01 | Part zeta exists | new | TEST zeta passes | | open |")
+        repo.tool("milestone_create", "commit", "M003")
+        self.assertIn("Milestone draft removed: M003", repo.tool("milestone_create", "remove", "M003"))
+        self.assertFalse((repo.root / never).exists())
+        self.assertNotIn("M003", repo.read("docs/milestones/PROGRESS.md"))
+        self.assertEqual(repo.git("status", "--porcelain"), "")
+        # a premature close moves the open features into the draft and opens it
+        repo.edit(name, r"\| F01 \| Part delta works", "| F03 | Part delta works")
+        rows = "| F01 | Part alpha exists | new | TEST alpha passes | | open |\n| F02 | Part beta exists | new | TEST beta passes | | open |\n"
+        repo.edit(name, r"\|---\|---\|---\|---\|---\|---\|\n", "|---|---|---|---|---|---|\n" + rows)
+        self.assertIn("without a commit", repo.tool("milestone_close", "migrate", "M002", fails=True))
+        repo.tool("milestone_create", "commit", "M002")
+        self.assertIn("Milestone created: M002", repo.tool("milestone_close", "migrate", "M002"))
+        self.assertEqual(repo.git("branch", "--show-current"), "milestone/M002-later")
+        self.assertIn("status: open", repo.read(name))
+        self.assertIn("M002-F01 | **migrated**", repo.read("docs/milestones/archive/M001-demo.md"))
+        self.assertEqual(repo.git("status", "--porcelain"), "")
+        repo.tool("progress", "check")
 
 
 class OtherPlans(unittest.TestCase):

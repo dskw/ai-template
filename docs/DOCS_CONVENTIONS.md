@@ -112,6 +112,8 @@ flowchart TD
 | D17 | A bug is one behavior that differs from the design or from a feature acceptance. |
 | D18 | A plan implements features, or one part of a feature, or a list of bugs, or a refactor. |
 | D19 | One milestone is open at a time. More than one plan can be active. A feature or a bug belongs to max one active plan. |
+| D274 | Any number of milestones can have the status `draft`. A draft holds a later milestone. It has no branch and no plan, and it takes no bug report. |
+| D275 | A draft gets the next free milestone id. The drafts open in the order of their ids. Only the user changes this order. |
 | D196 | Each active plan has the branch `plan/<plan id>` and the worktree `.worktrees/<plan id>/`. `python -m tools.plan_create commit` creates both. |
 | D197 | The main repository holds the milestone branch. The milestone skills, the plan creation and the plan close run there, one at a time. |
 | D198 | Each step, its reviews and the plan review run in the worktree of the plan. One agent session works in one worktree. |
@@ -155,6 +157,7 @@ The user can draw a route on the map, save it and load it again.
 | ID | Rule |
 |---|---|
 | D23 | `status` is `draft`, `open` or `closed`. |
+| D276 | `python -m tools.milestone_create draft <name>` writes a draft, `commit <id>` validates and commits it, `open <id>` opens it when no milestone is open, and `remove <id>` deletes it. |
 | D24 | `Goal` has one to three sentences. It names the user result, not the implementation. |
 | D25 | A feature text has max 12 words. `Type` is `new`, `update` or `refactor`. A refactor changes the structure of the code and no behavior. It can add a structure for a later instance and change each caller of a moved structure. |
 | D267 | A feature that another feature needs stands above it in the table. The text of the dependent feature names its id. |
@@ -222,12 +225,14 @@ flowchart TD
 |---|---|---|---|---|
 | M001 map-view | 5 | 5 | 0 | closed |
 | M003 route-planning | 5 | 1 | 2 | open |
+| M004 offline-maps | 3 | 0 | 0 | draft |
 ```
 
 | ID | Rule |
 |---|---|
 | D47 | The table is the only content of the file. `python -m tools.progress` writes it. |
 | D48 | Dropped and migrated features count in `Features` and not in `Done`. |
+| D278 | A draft stands in the table from its first commit on. |
 
 ## Plan file
 ```
@@ -487,10 +492,11 @@ flowchart TD
 | D99 | `python -m tools.milestone_close check` runs each acceptance check of the feature table. |
 | D100 | `python -m tools.milestone_close` applies the gate, writes the version, archives the file, merges the branch with a squash, tags it as `milestone/<id>` and deletes it. |
 | D101 | The user can close a milestone early. Close the active plan first. |
-| D102 | For a premature close, write the new milestone as draft with `python -m tools.milestone_create start <name> --migrate`. |
+| D102 | For a premature close, the migrated features go into the first draft or into a new draft. The user chooses. |
 | D103 | The draft starts with the migrated features in id order and the migrated bugs, with new ids. |
-| D104 | `python -m tools.milestone_close migrate <new id>` closes the old milestone and opens the new one. |
+| D104 | `python -m tools.milestone_close migrate <new id>` closes the old milestone and opens the committed draft. |
 | D105 | A migrated feature keeps nothing from its old plans. The new milestone tracks it from the state `open`. |
+| D277 | After a close, `milestone-close` offers the first draft. Before the draft opens, check it against the closed milestone and run a document review of the changes. |
 
 ## Gates
 A gate runs its checks itself. A gate failure names the missing item.
@@ -517,7 +523,7 @@ A gate runs its checks itself. A gate failure names the missing item.
 | D112 | Commit before the approval. The record holds the `HEAD` hash. A later change to a protected path invalidates it. |
 | D113 | Ask the user first. Then pass the answer with `--answer yes` or `--answer no`. Never answer for the user. A delegated manual check gets `--by agent`. |
 | D213 | Where the provider has a permission rule for it, the provider asks the user before each command that holds `--answer`. |
-| D114 | A milestone file and a plan file are editable while `status` is `draft`. |
+| D114 | A milestone file and a plan file are editable while `status` is `draft`. `python -m tools.milestone_create commit <id>` makes each commit of a milestone draft. |
 | D115 | After the creation commit, each write to a milestone file, `plan.md`, `progress.md` and `PROGRESS.md` goes through a tool. |
 | D214 | A tool commits its write to such a file, to an evidence file, to the ideas file and to the dependencies file at once. The commit check refuses each other commit that holds one. |
 | D116 | Never delete, rename or move a milestone file, a plan folder or an archive entry by hand. |
@@ -532,7 +538,8 @@ The tools make these commits. The agent never makes them by hand.
 | Commit message | Tool |
 |---|---|
 | `Project initialized`, `Project updated` | `project init`, `project update` |
-| `Milestone created: M003` | `milestone_create commit`, `milestone_close migrate` |
+| `Milestone drafted: M004`, `Milestone draft removed: M004` | `milestone_create commit`, `milestone_create remove` |
+| `Milestone created: M003` | `milestone_create open`, `milestone_close migrate` |
 | `Plan created: M003-P002` | `plan_create commit` |
 | `Step started: M003-P002 S01`, `Step blocked:`, `Step unblocked:`, `Fix step added:` | `step_close start`, `block`, `unblock`, `add-fix` |
 | `Evidence: M003-P002 S01` | `test --step` |
@@ -889,13 +896,13 @@ Each tool runs as `python -m tools.<name>`. A tool without arguments prints its 
 | `timing` | `start`, `end`, `report [<log>]` | Hook entries that log the duration of each tool call of a session in `.logs/timing/` of the main repository. The report prints the time per tool and the slowest calls. |
 | `agent_guard` | `<bash or edit>` | Hook entry. Reads the agent from `agent_type` of the hook input. Checks a call against `bash_allow` and `edit_allow`. Refuses a command of an agent that names a path outside the repository. |
 | `project` | `init`, `update`, `check`, `source` | Validates the bindings and commits them. Prints the absolute path of the dependency sources. |
-| `progress` | none, `check`, `status`, `add-feature`, `drop-feature`, `set-goal`, `out-of-scope <add or remove>`, `add-bug`, `fix-bug`, `drop-bug` | Writes `PROGRESS.md` and the feature tables. Prints the next step in a worktree and the active plans in the main repository. Writes features, bugs, the goal and the out of scope list in the main repository. |
-| `milestone_create` | `start <name>`, `commit` | Creates the branch and the draft file. Validates and commits the milestone. |
+| `progress` | none, `check`, `status`, `add-feature`, `drop-feature`, `set-goal`, `out-of-scope <add or remove>`, `add-bug`, `fix-bug`, `drop-bug` | Writes `PROGRESS.md` and the feature tables. Prints the next step in a worktree, and the active plans and the drafts in the main repository. Writes features, bugs, the goal and the out of scope list in the main repository. |
+| `milestone_create` | `draft <name>`, `commit <id>`, `open <id>`, `remove <id>` | Writes a draft file. Validates and commits a draft. Opens a draft with its branch. Removes a draft. |
 | `plan_create` | `start <feature, fix or refactor> <name>`, `reviewed`, `commit`, `worktree <plan>` | Creates the draft folder. Records a document review. Validates and commits the plan, then creates its branch and its worktree. |
 | `review_yield` | none | Counts the reviews of the archived plans per kind and round, their problems, the plans per topic and the bugs fixed later. |
 | `step_close` | `start`, `review`, `close [--answer] [--by agent]`, `revert`, `block`, `unblock`, `add-fix`, `set-text <step> "<text>"`, `set-dependencies <step> "<ids>"` | Makes each state change of a step, in the worktree of the plan. Writes the new text of an open step and the dependencies of an open step or a step in progress. |
 | `plan_close` | In the worktree: `sync`, `reviewed`, `review-passed`, `block`, `unblock`. In the main repository: `merge <plan>`, `tuning`, `check`, `verify-bug`, none | Makes each state change of the plan close. |
-| `milestone_close` | none, `check`, `migrate <id>` | Closes, merges or migrates a milestone. |
+| `milestone_close` | none, `check`, `migrate <id>` | Closes, merges or migrates a milestone. `migrate` opens the draft with the given id. |
 | `approve` | `<plan> <step or close>` | Writes an approval record of the user. |
 | `test` | none, `<name> [<name> ...]`, `<name> --command`, `--step <step>` | Runs the suite, the named tests in one call of the runner, or a command. Prints one line for a pass and the failed tests for a failure. Writes the full output to the evidence or to a log in `.logs/test/`. Ends a run after `test_run_limit` with its process tree, and ends leftover test processes before a run. |
 | `dependency` | `add "<trigger>" "<action>" "<validation>" "<source>"`, `change <id> "<trigger>" "<action>" "<validation>" "<source>"`, `remove <id> "<reason>"` | Adds a row with the next id to `docs/DEPENDENCIES.md`, changes the cells of a row and removes one in the close of a refactor plan. Commits the file. |
