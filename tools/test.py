@@ -4,7 +4,7 @@ import subprocess
 import xml.etree.ElementTree as ElementTree
 from pathlib import Path
 
-from tools._lib import BUILTIN_COMMANDS, LOG_FOLDER, ROOT, any_match, commit, fail, git, load_project, main, progress_row, read, require_plan, take_option, write
+from tools._lib import LOG_FOLDER, ROOT, active_plan, any_match, command_table, commit, fail, git, in_worktree, load_project, main, milestone_logs, progress_row, read, require_plan, take_option, write
 
 # the lines of output that the tool prints per failed test, and for a failed run without a report file
 FAILURE_LINES = 60
@@ -51,8 +51,10 @@ def failed_before_passed(plan, step_id, name):
     return failed is not None and 0 in exits[failed + 1 :]
 
 
-def log_path():
-    folder = ROOT / LOG_FOLDER / "test"
+def log_path(plan=None):
+    """A new log file: in the temporary folder of the plan of this worktree, else in that of the milestones."""
+    plan = plan or (active_plan() if in_worktree() else None)
+    folder = plan["dir"] / "tmp" / LOG_FOLDER if plan and in_worktree() else milestone_logs()
     folder.mkdir(parents=True, exist_ok=True)
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     return folder / f"{stamp}.log"
@@ -181,7 +183,7 @@ def execute(kind, name="", plan=None, step_id=None):
         else:
             commands = [template.replace("{name}", item) for item in names]
     else:
-        table = {**BUILTIN_COMMANDS, **project.get("commands", {})}
+        table = command_table()
         if names[0] not in table:
             fail(f"tools/project.toml: the command '{names[0]}' is not in [commands]")
         commands, label, report = [table[names[0]]], names[0], None
@@ -193,7 +195,7 @@ def execute(kind, name="", plan=None, step_id=None):
         ended = end_leftovers(project.get("test_binaries", []))
         run_code, output, hung = run_limited(command, limit)
         output = "".join(line + "\n" for line in ended) + output
-        log = log_path()
+        log = log_path(plan)
         write(log, output)
         outputs.append(output)
         wanted = names if len(commands) == 1 else names[index : index + 1]
@@ -208,8 +210,10 @@ def execute(kind, name="", plan=None, step_id=None):
 
 def changed_tests(base):
     """The names of the test files that changed or came since the commit `base`, committed or not. A test file lies
-    in a test folder of a language of the project, in a folder named `tests`, and is no shared module."""
+    in a test folder of a language of the project, in a folder named `tests`, outside the test support folder, and is
+    no shared module."""
     project = load_project()
+    support = str(project.get("test_support", "")).strip("/")
     changed = set(git("diff", "--name-only", base).splitlines())
     changed |= set(git("ls-files", "--others", "--exclude-standard").splitlines())
     names = []
@@ -217,6 +221,8 @@ def changed_tests(base):
         parts = path.split("/")
         stem, dot, extension = parts[-1].rpartition(".")
         if "tests" not in parts[:-1] or not dot or stem in ("mod", "common", "lib", "main"):
+            continue
+        if support and path.startswith(support + "/"):
             continue
         for language in project.get("language", []):
             folders = language.get("tests", [])

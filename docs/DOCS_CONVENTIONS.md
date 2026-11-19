@@ -45,7 +45,6 @@ The docs lint covers `docs/**`, `AGENTS.md`, `.agents/**` and `CHANGELOG.md`. It
 /.agents/.generated/manifest.json              (list and source hash of the generated files)
 /tools/                                        (Python package with every tool)
 /tools/project.toml                            (project bindings, written by project-init)
-/tools/tests/                                  (tests of the tools, run with python -m unittest discover tools/tests)
 /.worktrees/[PLAN ID]/                         (worktree of an active plan, not committed)
 /docs/CODE_CONVENTIONS.md                      (how to write code)
 /docs/TEST_CONVENTIONS.md                      (how to test)
@@ -68,8 +67,10 @@ The docs lint covers `docs/**`, `AGENTS.md`, `.agents/**` and `CHANGELOG.md`. It
 /docs/plans/M[NNN]-P[NNN]-[NAME]/problems.md   (review problems, answers and records)
 /docs/plans/M[NNN]-P[NNN]-[NAME]/evidence/     (raw output per step, written by tools.test)
 /docs/plans/M[NNN]-P[NNN]-[NAME]/tmp/          (temporary files of the plan, the manual check package, deleted at plan close)
+/docs/plans/M[NNN]-P[NNN]-[NAME]/tmp/logs/     (logs of the test tool in the worktree of the plan)
 /docs/plans/M[NNN]-P[NNN]-[NAME]/tmp/research/ (experiments of a research of the plan)
 /docs/milestones/tmp/                          (the manual check package of the milestone close, deleted at that close)
+/docs/milestones/tmp/logs/                     (logs of the test tool outside a plan and of the timing tool, deleted at the milestone close)
 /docs/plans/archive/                           (closed plans)
 /docs/plans/IDEAS.md                           (ideas for later milestones)
 /docs/wiki/                                    (developer wiki, project content only)
@@ -77,7 +78,6 @@ The docs lint covers `docs/**`, `AGENTS.md`, `.agents/**` and `CHANGELOG.md`. It
 /docs/wiki/_sidebar.md                         (navigation: each page once under its group)
 /docs/wiki/[GROUP]/[PAGE].md                   (one page; the groups are start, architecture, systems, working and those of the project)
 /docs/wiki/assets/                             (generated bundle with the dark theme; no page lives here)
-/.logs/                                        (logs of the test tool and the timing tool, ignored by git)
 /CHANGELOG.md                                  (versions, written by tools.milestone_close)
 /DEPLOYMENT.md                                 (deployed version and compatible paths, written by the user)
 ```
@@ -116,7 +116,7 @@ flowchart TD
 | D275 | A draft gets the next free milestone id. The drafts open in the order of their ids. Only the user changes this order. |
 | D196 | Each active plan has the branch `plan/<plan id>` and the worktree `.worktrees/<plan id>/`. `python -m tools.plan_create commit` creates both. |
 | D197 | The main repository holds the milestone branch. The milestone skills, the plan creation and the plan close run there, one at a time. |
-| D198 | Each step, its reviews and the plan review run in the worktree of the plan. One agent session works in one worktree. |
+| D198 | Each step, its reviews and the plan review run in the worktree of the plan. One agent writes in one worktree. One session can run the agents of several plans. |
 | D199 | Only a session in the main repository writes the shared files. They are the milestone files, `PROGRESS.md`, the ideas file, the memory, the adjustments document and the dependencies file. |
 | D200 | A need of a step for a shared file waits for the plan close. It goes to `extensions.md`: a new need as it is, a fact for the memory with the prefix `Memory:`, a setup finding with the prefix `Setup:`. |
 | D20 | Each stage has a skill. The skill calls the tools. A tool makes each state change. |
@@ -362,7 +362,8 @@ stateDiagram-v2
 | D66 | The implementor writes `Answer`: `fixed <commit>` or `closed <category> <reason>`. |
 | D67 | The categories are `wrong`, `intentional` and `prevented`. |
 | D68 | `wrong`: the trigger does not exist. `intentional`: name the design or the convention. `prevented`: name the place that prevents the trigger. |
-| D69 | In a later round the review skill writes `Check` for each problem of the round before: `confirmed` or `re-raised <trigger>`. |
+| D69 | In a later round the review skill writes `Check` for each problem of the round before: `confirmed` or `re-raised <trigger>`. A re-raised problem that a new row of the same step carries gets `carried <id>`. |
+| D280 | A gate treats a problem with `carried <id>` as closed when the row with that id has an answer and the check `confirmed`. |
 | D70 | The answer of a `Pre-existing` problem is `bug <id>`. The plan close runs `bug-report` for it in the main repository and writes the answer. |
 | D205 | `Topic` holds one or two words for the subject of the failure. A problem with the subject of an earlier problem takes its topic. |
 | D206 | The implementor decides before each fix if the trigger exists and if the design wants the behavior. It closes the problem with its category when not. |
@@ -431,6 +432,7 @@ sequenceDiagram
 | D195 | The `implementor` agent writes the code and the documents of a step in a fresh context. The main session runs the tools and reads the reports. |
 | D246 | In a research step the `researcher` agent takes the place of the implementor. The document review of the research file is the review of the step. |
 | D194 | A step revert keeps the commits outside the step: memories, setup findings, milestone files and other plans. It names each kept commit. |
+| D281 | A bug that sits in a test has a mutation run as its failing run. The mutation breaks the behavior that the test guards, and no commit holds it. |
 | D186 | Start the step before the first write to a source or test folder. The pre-commit check rejects such a change while a plan is active and no step is in progress. |
 
 ## Plan close
@@ -466,7 +468,7 @@ flowchart TD
 | D209 | `python -m tools.plan_close merge <plan>` tags the plan branch as `closed/<plan id>` and makes the commit `Plan merged:` with a squash. One plan is in close at a time. |
 | D210 | The writes of the close after the merge change no source file and no test file. The plan gate refuses such a change. |
 | D211 | A test that fails at the plan merge goes into the task of the plan review in the worktree. The review posts it as an `Important` problem, and a fix step carries the fix. |
-| D85 | A failing acceptance check does not block the plan close. The feature stays `in progress`. |
+| D85 | A failing acceptance check does not block the plan close. An acceptance command without a binding is a failing check. The feature stays `in progress`. |
 | D86 | The plan review has max 3 rounds, a further round only after an `Important` problem. An `Important` problem open after round 3 gets a fix step. |
 | D87 | A fix step runs under the step rules. The plan review runs again after it. |
 | D88 | Each rule id gets max one fix step per plan close. After that, block the plan and ask the user. |
@@ -531,6 +533,7 @@ A gate runs its checks itself. A gate failure names the missing item.
 | D181 | Write only inside the repository. A temporary file goes into `docs/plans/<plan>/tmp/`, `docs/research/tmp/` or `docs/milestones/tmp/`. |
 | D257 | Outside the repository, the pre-write hook allows only the user folder of the provider. The bash guard refuses a command of an agent that names a path outside the repository. |
 | D258 | The bash guard allows the folders of `toolchain_folders` and `dependency_source` in `tools/project.toml`. It does not check the main session. |
+| D279 | The pre-write hook and the bash guard judge the work of an agent against the root of its path. The root is the main repository or the worktree that holds the path. The first write of an agent binds it to its root. Work without an agent keeps the root of the session. |
 
 ## Commits
 The tools make these commits. The agent never makes them by hand.
@@ -892,9 +895,9 @@ Each tool runs as `python -m tools.<name>`. A tool without arguments prints its 
 | `setup` | | Bootstrap. |
 | `provider` | none, `check` | Generates the provider files. Checks that they are current. |
 | `check` | none, `<files>`, `--format-only`, `--staged` | Runs lint, format, encoding, docs lint, memory lint, provider, wiki and progress checks. `--format-only` skips the lint. `--staged`, the commit hook, lints the staged documents only and refuses a tool file in a commit that no tool makes. |
-| `pre_write`, `post_write` | | Hook entries. Block a protected write. Run the generator and the checks for a changed file. |
-| `timing` | `start`, `end`, `report [<log>]` | Hook entries that log the duration of each tool call of a session in `.logs/timing/` of the main repository. The report prints the time per tool and the slowest calls. |
-| `agent_guard` | `<bash or edit>` | Hook entry. Reads the agent from `agent_type` of the hook input. Checks a call against `bash_allow` and `edit_allow`. Refuses a command of an agent that names a path outside the repository. |
+| `pre_write`, `post_write` | | Hook entries. Block a protected write. Run the generator and the checks for a changed file. Run the hook of the main repository or of the worktree that holds the path of a write of an agent. Refuse a write of an agent outside its first root. |
+| `timing` | `start`, `end`, `report [<log>]` | Hook entries that log the duration of each tool call of a session in `docs/milestones/tmp/logs/` of the main repository. The report prints the time per tool and the slowest calls. |
+| `agent_guard` | `<bash or edit>` | Hook entry. Reads the agent from `agent_type` of the hook input. Checks a call against `bash_allow` and `edit_allow` of the root of its path. A leading `cd <root> &&` names that root. Refuses a command of an agent that names a path outside the repository. |
 | `project` | `init`, `update`, `check`, `source` | Validates the bindings and commits them. Prints the absolute path of the dependency sources. |
 | `progress` | none, `check`, `status`, `add-feature`, `drop-feature`, `set-goal`, `out-of-scope <add or remove>`, `add-bug`, `fix-bug`, `drop-bug` | Writes `PROGRESS.md` and the feature tables. Prints the next step in a worktree, and the active plans and the drafts in the main repository. Writes features, bugs, the goal and the out of scope list in the main repository. |
 | `milestone_create` | `draft <name>`, `commit <id>`, `open <id>`, `remove <id>` | Writes a draft file. Validates and commits a draft. Opens a draft with its branch. Removes a draft. |
@@ -904,7 +907,7 @@ Each tool runs as `python -m tools.<name>`. A tool without arguments prints its 
 | `plan_close` | In the worktree: `sync`, `reviewed`, `review-passed`, `block`, `unblock`. In the main repository: `merge <plan>`, `tuning`, `check`, `verify-bug`, none | Makes each state change of the plan close. |
 | `milestone_close` | none, `check`, `migrate <id>` | Closes, merges or migrates a milestone. `migrate` opens the draft with the given id. |
 | `approve` | `<plan> <step or close>` | Writes an approval record of the user. |
-| `test` | none, `<name> [<name> ...]`, `<name> --command`, `--step <step>` | Runs the suite, the named tests in one call of the runner, or a command. Prints one line for a pass and the failed tests for a failure. Writes the full output to the evidence or to a log in `.logs/test/`. Ends a run after `test_run_limit` with its process tree, and ends leftover test processes before a run. |
+| `test` | none, `<name> [<name> ...]`, `<name> --command`, `--step <step>` | Runs the suite, the named tests in one call of the runner, or a command. Prints one line for a pass and the failed tests for a failure. Writes the full output to the evidence or to a log. The log lies in `tmp/logs/` of the plan folder in a plan worktree, else in `docs/milestones/tmp/logs/`. Ends a run after `test_run_limit` with its process tree, and ends leftover test processes before a run. |
 | `dependency` | `add "<trigger>" "<action>" "<validation>" "<source>"`, `change <id> "<trigger>" "<action>" "<validation>" "<source>"`, `remove <id> "<reason>"` | Adds a row with the next id to `docs/DEPENDENCIES.md`, changes the cells of a row and removes one in the close of a refactor plan. Commits the file. |
 | `memory_index`, `memory_lint` | none, `show`, `--strict` | Writes and checks the memory index and the entries. |
 | `ideas` | `add "<idea>" <user or agent>`, `edit <id> "<idea>"`, `remove <id> [<id> ...] "<reason>"` | Adds an idea with the next id, changes the text of an idea and removes ideas from `docs/plans/IDEAS.md`. Commits the file. |

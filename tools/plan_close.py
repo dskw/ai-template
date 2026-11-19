@@ -26,6 +26,7 @@ from tools._lib import (
     load_project,
     main,
     merging,
+    missing_command,
     milestone_branch,
     milestones,
     open_important,
@@ -102,12 +103,24 @@ def target_row(plan, milestone, item):
     return next((row for row in table if row["ID"] == item), None)
 
 
+def unbound(acceptance, item):
+    """Whether the acceptance names a command without a binding. It prints the failure: the check fails, and the
+    feature stays in progress."""
+    name = missing_command(acceptance)
+    if name:
+        print(
+            f"{item} {acceptance}: fail, the command {name} has no binding in [commands] of tools/project.toml."
+            " The feature stays in progress. Run project-update to add the binding"
+        )
+    return bool(name)
+
+
 def passes(acceptance, item, problems):
     kind, name = parse_check(acceptance)
     if kind == "MANUAL":
         record = problems.last(("manual passed", "manual failed"), item)
         return bool(record) and record["type"] == "manual passed"
-    return test.execute(kind, name)[0] == 0
+    return not unbound(acceptance, item) and test.execute(kind, name)[0] == 0
 
 
 def check(args, answer, by=None):
@@ -125,6 +138,8 @@ def check(args, answer, by=None):
                 continue
             passed = ask(f"Manual check {name} for {item}: did it pass?", answer)
             problems.record("manual passed" if passed else "manual failed", item)
+        elif unbound(row["Acceptance"], item):
+            continue
         else:
             passed = test.execute(kind, name)[0] == 0
         source = " (checked by the agent on request of the user)" if by == "agent" else ""

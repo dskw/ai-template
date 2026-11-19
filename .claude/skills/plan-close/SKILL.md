@@ -30,6 +30,9 @@ The rules are in `docs/DOCS_CONVENTIONS.md`, sections Plan close, Tuning and Gat
 14. Ask the user to close the manual check package. Run `python -m tools.plan_close`. Fix each item that the gate names.
 15. Name each problem that became a bug in the report to the user.
 
+## Several plans in one session
+Follow the section Several plans in one session of `step-run`. Run the tools of part 1 in a sub shell with the worktree of the plan as its directory. Run the tools of part 2 in a sub shell with the main repository as its directory. The wiki agent of part 1 is the one agent that writes in the worktree.
+
 ## Rules
 - When the agent recommends no tuning change, it applies none and does not mention tuning to the user.
 - One plan is in close at a time. Finish part 2 of a plan before the merge of the next plan.

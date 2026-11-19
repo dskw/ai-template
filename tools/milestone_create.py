@@ -9,6 +9,7 @@ from tools._lib import (
     git_ok,
     load_project,
     main,
+    missing_command,
     milestone_branch,
     milestones,
     next_id,
@@ -116,6 +117,10 @@ def save(milestone_id):
     errors = validate(milestone, milestones())
     if errors:
         fail("\n".join(errors))
+    for row in milestone["features"]:
+        name = missing_command(row["Acceptance"])
+        if name:
+            print(f"warning: {row['ID']}: the command {name} has no binding in [commands] of tools/project.toml. Run project-update before the first plan of the feature")
     git("add", "--", milestone["rel"])
     progress.regenerate()
     if commit(f"Milestone drafted: {milestone_id}", [milestone["path"], progress.PROGRESS]):

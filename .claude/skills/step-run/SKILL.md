@@ -5,7 +5,7 @@ description: Implements the next step of the plan of this worktree with code, ev
 # step-run
 
 The rules are in `docs/DOCS_CONVENTIONS.md`, section Step execution, and in the code and test conventions. The main session orchestrates: it runs the tools of the step state, starts the agents and reads their reports, not the code.
-Change the directory to the worktree of the plan right before each agent start. Name the worktree in the task of the agent. Name the dependency sources too: the path that `python -m tools.project source` prints, unless it prints `none`.
+Change the directory to the worktree of the plan right before each agent start, unless an agent of another plan runs. Name the worktree in the task of the agent. Name the dependency sources too: the path that `python -m tools.project source` prints, unless it prints `none`.
 
 ## Procedure
 1. Run `python -m tools.progress status` in the worktree of the plan. Take the step that it prints.
@@ -19,14 +19,21 @@ Change the directory to the worktree of the plan right before each agent start. 
 9. When a protected path changed, ask the user, and run `python -m tools.approve <plan> <step> --answer <yes|no>`.
 10. Run `python -m tools.step_close close <step>`. Fix each item that the gate names and run it again.
 
+## Several plans in one session
+1. Start max one agent that writes per worktree at a time. Its first write binds it to that worktree, and the write hook refuses its writes into another worktree.
+2. Never change the directory of the session while an agent runs. Start the agent of another plan from the current directory, and name its worktree in the task.
+3. Run each state tool of a plan in a sub shell with the worktree as its directory, for example `(cd <worktree> && python -m tools.step_close close <step>)`.
+4. The hooks judge a write of an agent against the root of its path. When the hook input names no agent, the directory of the session stays the root. Parallel plans then need one session per worktree.
+
 ## Research step
 A step with the verification `COMMAND research_check passes` is a research step. Run `python -m tools.step_close start <step>`, then the skill `research-run` with its section Research step of a plan. No implementor agent runs, and the step changes no source file and no test file. Then continue at step 9 of the procedure.
 
 ## Fix plan step
 The implementor writes the regression test first when the acceptance of the bug is a test. It runs the test with the option `--step` on the code without the fix and after the fix. The evidence shows the failing run before the passing run, and the step gate refuses the close without it.
+A bug can sit in the test, so the old test passes on correct code. Then tell the implementor to use a mutation run as the failing run. The mutation breaks the behavior that the test guards. The implementor runs the test with `--step` and reverts the mutation without a commit. It names the mutation in its report.
 
 ## Agent that waits
-An agent can report that it waits for its own build or test run. Then read the logs of that run in the log folder of the repository and the evidence file of the step. When the run finished, send the agent a message with the result and tell it to go on. When no run is active, tell it to run the command again in the foreground.
+An agent can report that it waits for its own build or test run. Then read the logs of that run in the folder `tmp/logs/` of the plan folder and the evidence file of the step. When the run finished, send the agent a message with the result and tell it to go on. When no run is active, tell it to run the command again in the foreground.
 
 ## Test that the plan did not name
 When a report names a test that the verification of the plan does not hold, ask the user. After the approval, run `python -m tools.step_close add-check "TEST <name> passes" --answer yes`.

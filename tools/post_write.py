@@ -1,6 +1,6 @@
 import sys
 
-from tools._lib import ROOT, any_match, hook_paths, main, outside, tool
+from tools._lib import ROOT, any_match, hook_input, main, outside, split_hook, tool
 
 GENERATORS = [
     ("provider", [".agents/**", "AGENTS.md"], [".agents/.generated/**"]),
@@ -10,9 +10,11 @@ GENERATORS = [
 
 
 def run(args):
-    names = [name for name, _ in hook_paths(args) if not outside(name)]
+    data = {} if args else hook_input()
+    delegated, paths = split_hook("post_write", [], data, args)
+    names = [name for name, _ in paths if not outside(name)]
     if not names:
-        return 0
+        return delegated
     failed = []
     for generator, sources, outputs in GENERATORS:
         if any(any_match(name, sources) and not any_match(name, outputs) for name in names):
@@ -26,7 +28,7 @@ def run(args):
         print("\n".join(failed), file=sys.stderr)
         return 2
     print(output, end="")
-    return 0
+    return delegated
 
 
 if __name__ == "__main__":

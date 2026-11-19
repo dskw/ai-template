@@ -1,16 +1,16 @@
 """Logs the duration of each tool call of an agent session and reports the slowest calls and the time per tool.
 
-Hook entries: `start` runs before a tool call, `end` after it. The log of a session lies in the log folder of the main
-repository, one line per call. `report [<log>]` prints the slowest calls and the time per tool of the newest log."""
+Hook entries: `start` runs before a tool call, `end` after it. The log of a session lies in the log folder of the
+milestones of the main repository, one line per call. `report [<log>]` prints the slowest calls and the time per tool of the newest log."""
 
 import json
 import time
 from collections import Counter
 from pathlib import Path
 
-from tools._lib import LOG_FOLDER, fail, hook_input, main, main_root
+from tools._lib import fail, hook_input, main, milestone_logs
 
-LOG_DIR = main_root() / LOG_FOLDER / "timing"
+LOG_DIR = milestone_logs()
 SLOWEST = 15
 
 

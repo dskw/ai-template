@@ -15,8 +15,8 @@ MILESTONES = DOCS / "milestones"
 PLANS = DOCS / "plans"
 PROJECT_FILE = ROOT / "tools" / "project.toml"
 CHANGELOG = ROOT / "CHANGELOG.md"
-# the logs of the tools lie in this folder of the repository, which git ignores
-LOG_FOLDER = ".logs"
+# the logs of the tools lie in this folder of the temporary folder of a plan or of the milestones, which git ignores
+LOG_FOLDER = "logs"
 
 MILESTONE_FILE = re.compile(r"^(M\d{3})-([a-z0-9]+(?:-[a-z0-9]+)*)\.md$")
 PLAN_DIR = re.compile(r"^(M\d{3})-(P\d{3})-([a-z0-9]+(?:-[a-z0-9]+)*)$")
@@ -266,12 +266,24 @@ def milestone_branches():
 _MAIN_ROOT = []
 
 
-def main_root():
-    """The work tree of the main repository. In the worktree of a plan it differs from `ROOT`."""
+def common_dir():
+    """The Git folder that the main repository and each worktree share."""
     if not _MAIN_ROOT:
         code, output = run(["git", "rev-parse", "--git-common-dir"])
-        _MAIN_ROOT.append((ROOT / output.strip()).resolve().parent if code == 0 else ROOT.resolve())
+        folder = (ROOT / output.strip()).resolve() if code == 0 else ROOT.resolve() / ".git"
+        _MAIN_ROOT.append(folder)
     return _MAIN_ROOT[0]
+
+
+def main_root():
+    """The work tree of the main repository. In the worktree of a plan it differs from `ROOT`."""
+    return common_dir().parent
+
+
+def milestone_logs():
+    """The log folder of the tools outside a plan: in the temporary folder of the milestones of the main repository.
+    The milestone close removes it."""
+    return main_root() / "docs" / "milestones" / "tmp" / LOG_FOLDER
 
 
 def in_worktree():
@@ -470,6 +482,17 @@ def load_project():
         return tomllib.loads(read(PROJECT_FILE))
     except tomllib.TOMLDecodeError as error:
         fail(f"tools/project.toml: {error}")
+
+
+def command_table():
+    """The named commands of the project: the commands of each project and those of its bindings."""
+    return {**BUILTIN_COMMANDS, **load_project().get("commands", {})}
+
+
+def missing_command(acceptance):
+    """The name of the command of an acceptance that has no binding, or None."""
+    check = parse_check(acceptance)
+    return check[1] if check and check[0] == "COMMAND" and check[1] not in command_table() else None
 
 
 def milestone_files():
@@ -722,8 +745,8 @@ class Problems:
         answer = row["Answer"]
         if answer and not re.match(r"^(fixed \S+|closed (wrong|intentional|prevented) \S.*|reverted|user \S.*|fix \S+|bug \S+)$", answer):
             fail(f"{name}: Answer must be 'fixed <commit>' or 'closed <wrong|intentional|prevented> <reason>'")
-        if row["Check"] and not re.match(r"^(confirmed|re-raised \S.*)$", row["Check"]):
-            fail(f"{name}: Check must be 'confirmed' or 're-raised <trigger>'")
+        if row["Check"] and not re.match(r"^(confirmed|re-raised \S.*|carried N\d{2})$", row["Check"]):
+            fail(f"{name}: Check must be 'confirmed', 're-raised <trigger>' or 'carried <id>'")
 
     def record(self, kind, *ids):
         line = "- " + " ".join([kind, *ids, today()])
@@ -769,12 +792,18 @@ def problem_errors(rows, hint, held):
     """The gate errors of the problem rows of one subject after `held` review rounds."""
     errors = []
     last = held >= MAX_ROUNDS
+    by_id = {row["ID"]: row for row in rows}
     for row in rows:
         if settled(row):
             continue
         important = row["Severity"] == "Important"
         if not row["Answer"]:
             errors.append(f"{row['ID']}: the problem has no answer")
+        elif row["Check"].startswith("carried"):
+            # a later row carries the re-raised trigger: the problem closes with the confirmed answer of that row
+            carrier = by_id.get(row["Check"].split()[1])
+            if not carrier or not carrier["Answer"] or carrier["Check"] != "confirmed":
+                errors.append(f"{row['ID']}: {row['Check']} needs an answer of that row and the check confirmed")
         elif row["Check"].startswith("re-raised"):
             if important and last:
                 errors.append(f"{row['ID']}: Important problem re-raised in round {held}: {hint}")
@@ -882,9 +911,57 @@ def outside(name):
     return os.path.isabs(name)
 
 
+def setup_root(path):
+    """The root of the main repository or of one of its worktrees that holds `path`: the first folder upward that holds
+    the tools of the setup. None for a path outside of them, also for a path in another repository."""
+    folder = Path(os.path.abspath(path))
+    for candidate in [folder, *folder.parents]:
+        if (candidate / "tools" / "_lib.py").is_file():
+            candidate = candidate.resolve()
+            main_folder = main_root()
+            return candidate if candidate == main_folder or candidate.parent == main_folder / ".worktrees" else None
+    return None
+
+
+def split_hook(module, args, data, argv=()):
+    """Runs the hook `module` with `args` in the root of each path of an agent write that lies in another worktree of
+    this repository, or in the main repository. A write without an agent keeps the root of the session. Returns the
+    highest exit code of those runs and the paths of this root, as `hook_paths` gives them."""
+    paths = hook_paths(list(argv), data)
+    if not data.get("agent_id") or os.environ.get(HOOK_PATHS):
+        return 0, paths
+    own, local, foreign = ROOT.resolve(), [], {}
+    for name, kind in paths:
+        root = setup_root(os.path.join(ROOT, name))
+        if root is None or root == own:
+            local.append((name, kind))
+        else:
+            foreign.setdefault(root, []).append((os.path.abspath(os.path.join(ROOT, name)), kind))
+    code = 0
+    for root, found in foreign.items():
+        result = subprocess.run(
+            [sys.executable, "-m", f"tools.{module}", *args],
+            cwd=root,
+            input=json.dumps(data).encode("utf-8"),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env={**os.environ, HOOK_PATHS: json.dumps(found)},
+        )
+        sys.stdout.write(result.stdout.decode("utf-8", errors="replace"))
+        sys.stderr.write(result.stderr.decode("utf-8", errors="replace"))
+        code = max(code, result.returncode)
+    return code, local
+
+
+# a hook that runs in the root of a write gets the paths of that root in this variable
+HOOK_PATHS = "SETUP_HOOK_PATHS"
+
+
 def hook_paths(argv, data=None):
     if argv:
         found = [(name, "write") for name in argv]
+    elif os.environ.get(HOOK_PATHS):
+        found = [tuple(item) for item in json.loads(os.environ[HOOK_PATHS])]
     else:
         data = hook_input() if data is None else data
         values = data.get("tool_input") or data.get("args") or {}

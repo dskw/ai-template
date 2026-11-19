@@ -5,6 +5,7 @@ import shutil
 from tools import milestone_create, progress, test
 from tools._lib import (
     CHANGELOG,
+    LOG_FOLDER,
     MILESTONES,
     Problems,
     active_plans,
@@ -151,7 +152,8 @@ def release(milestone):
 def clear_tmp():
     stop_package(TMP)
     shutil.rmtree(TMP, ignore_errors=True)
-    if TMP.exists():
+    # a hook of the session can write a new log at once; only the package blocks the close
+    if TMP.exists() and any(path.name != LOG_FOLDER for path in TMP.iterdir()):
         fail(f"{rel(TMP)} is in use: close the manual check package, then run the close again")
 
 
@@ -228,6 +230,8 @@ def merge():
         git("tag", tag, name)
     git("branch", "-D", name)
     marker.unlink()
+    # the last check of the close ran, so its logs go
+    shutil.rmtree(TMP / LOG_FOLDER, ignore_errors=True)
     print(f"merged {name} into {main_branch} as one commit")
 
 

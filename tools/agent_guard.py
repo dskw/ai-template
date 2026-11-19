@@ -1,10 +1,11 @@
+import json
 import os
 import re
+import subprocess
 import sys
 import tomllib
-from pathlib import Path
 
-from tools._lib import PROJECT_FILE, ROOT, any_match, fail, hook_input, hook_paths, main, main_root, read, read_meta
+from tools._lib import PROJECT_FILE, ROOT, any_match, fail, hook_input, main, main_root, read, read_meta, setup_root, split_hook
 
 SHELL_OPERATORS = (";", "&", "|", "<", ">", "`", "$(", "\n")
 # an absolute path starts a token: a drive, a share, the home folder or a root folder
@@ -85,6 +86,43 @@ def outside_paths(command):
     return found
 
 
+# a command that starts with a change into a folder: the folder is the root of the work of the command
+CHANGE_FOLDER = re.compile(r"""^cd\s+("[^"]+"|'[^']+'|[^\s;&|]+)\s*&&\s*""")
+
+
+def work_root(command):
+    """The root of the main repository or of a worktree that a command works in, and the command without its change
+    into that root. The root comes from a leading change of the folder, else from the first absolute path of the
+    command that lies in a root. None when the command names no root."""
+    match = CHANGE_FOLDER.match(command)
+    if match:
+        folder = native(match.group(1).strip("\"'"))
+        root = setup_root(os.path.join(ROOT, folder))
+        if root is not None and os.path.normcase(os.path.abspath(os.path.join(ROOT, folder))) == os.path.normcase(str(root)):
+            return root, command[match.end() :]
+    for match in ABSOLUTE.finditer(command):
+        token = match.group(1).rstrip(".,:")
+        if is_path(token) and token not in ALLOWED_DEVICES:
+            root = setup_root(native(token))
+            if root is not None:
+                return root, command
+    return None, command
+
+
+def delegate(root, args, data):
+    """Runs the guard of another root with the same hook input and returns its exit code."""
+    result = subprocess.run(
+        [sys.executable, "-m", "tools.agent_guard", *args],
+        cwd=root,
+        input=json.dumps(data).encode("utf-8"),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    sys.stdout.write(result.stdout.decode("utf-8", errors="replace"))
+    sys.stderr.write(result.stderr.decode("utf-8", errors="replace"))
+    return result.returncode
+
+
 def run(args):
     if len(args) not in (1, 2) or args[-1] not in ("bash", "edit"):
         fail("usage: python -m tools.agent_guard [<agent>] <bash|edit>")
@@ -94,7 +132,11 @@ def run(args):
     if not agent:
         return 0
     command = str((data.get("tool_input") or data.get("args") or {}).get("command", "")).strip()
+    paths = []
     if tool_type == "bash":
+        root, command = work_root(command)
+        if root is not None and root != ROOT.resolve() and data.get("agent_id"):
+            return delegate(root, args, data)
         outside = outside_paths(command)
         if outside:
             print(f"The agent {agent} works only inside the repository: {', '.join(outside)}", file=sys.stderr)
@@ -106,6 +148,10 @@ def run(args):
                 file=sys.stderr,
             )
             return 2
+    else:
+        code, paths = split_hook("agent_guard", args, data)
+        if code:
+            return code
     path = ROOT / ".agents" / "agents" / f"{agent}.md"
     if not path.exists():
         return 0
@@ -120,7 +166,7 @@ def run(args):
     else:
         allowed = meta.get("edit_allow")
         if isinstance(allowed, list):
-            for name, _ in hook_paths([], data):
+            for name, _ in paths:
                 if not any_match(name, allowed):
                     print(f"The agent {agent} edits only files that match: {', '.join(allowed)}", file=sys.stderr)
                     return 2
