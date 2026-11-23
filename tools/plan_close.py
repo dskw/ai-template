@@ -11,12 +11,14 @@ from tools._lib import (
     TOOL_COMMIT,
     Problems,
     active_plans,
+    all_steps,
     approval_errors,
     ask,
     branch,
     clean_tree,
     commit,
     dirty_files,
+    earlier_pass,
     fail,
     git,
     git_dir,
@@ -52,11 +54,13 @@ from tools._lib import (
     today,
     tool,
     tool_git,
+    unclean,
+    user_reason,
     words,
     worktree_path,
     write,
 )
-from tools.approve import close_base, created_commit
+from tools.approve import close_base
 from tools.milestone_create import section
 
 PLAN_HINT = "add a fix step with python -m tools.step_close add-fix <problem> <step>"
@@ -131,42 +135,61 @@ def check(args, answer, by=None):
         if not row or row.get("State") == "dropped" or (args and item not in args):
             continue
         kind, name = parse_check(row["Acceptance"])
+        source = " (checked by the agent on request of the user)" if by == "agent" else ""
         if kind == "MANUAL":
-            if answer is None:
-                print(f"{item} MANUAL {name}: ask the user, then run python -m tools.plan_close check {item} --answer yes|no")
+            passed, note = manual_result(problems, name, f"Manual check {name} for {item}: did it pass?", answer, f"{item} MANUAL {name}", item)
+            if passed is None:
                 code = 1
                 continue
-            passed = ask(f"Manual check {name} for {item}: did it pass?", answer)
-            problems.record("manual passed" if passed else "manual failed", item)
+            source = note or source
+            problems.record("manual passed" if passed else "manual failed", item, name, git("rev-parse", "--short=12", "HEAD"))
         elif unbound(row["Acceptance"], item):
             continue
         else:
             passed = test.execute(kind, name)[0] == 0
-        source = " (checked by the agent on request of the user)" if by == "agent" else ""
         print(f"{item} {row['Acceptance']}: {'pass' if passed else 'fail'}{source}")
     for name in manual_lines(plan, milestone):
         if args and name not in args:
             continue
-        if answer is None:
-            print(f"verification MANUAL {name}: ask the user, then run python -m tools.plan_close check {name} --answer yes|no")
+        passed, note = manual_result(problems, name, f"Manual check {name} of the plan verification: did it pass?", answer, f"verification MANUAL {name}", name)
+        if passed is None:
             code = 1
             continue
-        passed = ask(f"Manual check {name} of the plan verification: did it pass?", answer)
-        problems.record("plan manual passed" if passed else "plan manual failed", name)
-        source = " (checked by the agent on request of the user)" if by == "agent" else ""
+        problems.record("plan manual passed" if passed else "plan manual failed", name, git("rev-parse", "--short=12", "HEAD"))
+        source = note or (" (checked by the agent on request of the user)" if by == "agent" else "")
         print(f"verification MANUAL {name}: {'pass' if passed else 'fail'}{source}")
     problems.save()
+    commit(f"Manual check recorded: {plan['id']}", [problems.path], verify=False)
     return code
+
+
+def manual_result(problems, name, question, answer, label, target):
+    """The result of a manual check of the plan close and a note on its source. Without `--answer`, an earlier pass
+    holds while no product file changed since its commit. None means that the user has to answer."""
+    if answer is not None:
+        return ask(question, answer), ""
+    record, changed = earlier_pass([problems], name)
+    if record and not changed:
+        return True, f" (the pass at {record['ids'][-1]} holds, no product file changed since)"
+    stale = f". The pass at {record['ids'][-1]} no longer holds, these files changed since: {' '.join(changed)}" if record else ""
+    print(f"{label}: ask the user, then run python -m tools.plan_close check {target} --answer yes|no{stale}")
+    return None, ""
 
 
 def manual_lines(plan, milestone):
     """The names of the manual lines of the plan verification that are no acceptance of an item of the plan. The
-    check of the item records the acceptance."""
-    acceptances = {row["Acceptance"] for item in plan["ids"] if (row := target_row(plan, milestone, item))}
+    check of the item records the acceptance. A line that only the steps of dropped items verify asks no check."""
+    rows = {item: row for item in plan["ids"] if (row := target_row(plan, milestone, item))}
+    acceptances = {row["Acceptance"] for row in rows.values()}
+    gone = {item for item in plan["ids"] if item not in rows or rows[item].get("State") == "dropped"}
     names = []
     for kind, name in plan_checks(plan):
-        if kind == "MANUAL" and f"MANUAL {name}" not in acceptances and name not in names:
-            names.append(name)
+        if kind != "MANUAL" or f"MANUAL {name}" in acceptances or name in names:
+            continue
+        owners = {step["Feature"] for step in all_steps(plan) if step["Verification"] == f"MANUAL {name}"}
+        if owners and owners <= gone:
+            continue
+        names.append(name)
     return names
 
 
@@ -189,7 +212,7 @@ def verify_bug(bug_id):
     if not verified:
         print(f"{bug_id}: the acceptance check '{row['Acceptance']}' does not pass")
     elif kind == "TEST":
-        step = next(step for step in plan["steps"] if step["Feature"] == bug_id)
+        step = next(step for step in plan["steps"] if step["Feature"] == bug_id and step["Verification"] == row["Acceptance"])
         verified = test.failed_before_passed(plan, step["Step"], name)
         if not verified:
             print(f"{bug_id}: the evidence of {step['Step']} must show a failing run of {name} before a passing run")
@@ -197,6 +220,7 @@ def verify_bug(bug_id):
         return 1
     problems.record("bug verified", bug_id)
     problems.save()
+    commit(f"Bug verified: {plan['id']} {bug_id}", [problems.path], verify=False)
     print(f"bug verified {bug_id}")
 
 
@@ -227,7 +251,10 @@ def tuning():
     # a topic of this plan that an earlier plan had too: the same failure came back
     for topic in sorted(topic for topic in topics if plan["id"] in topics[topic] and len(topics[topic]) >= 2):
         others = " ".join(sorted(topics[topic] - {plan["id"]}))
-        print(f"tune topic {topic}: also in {others}. Add one row to the failure patterns of docs/REVIEW.md, or propose a dependency")
+        print(
+            f"tune topic {topic}: also in {others}. Add one row to the failure patterns of docs/REVIEW.md, propose a dependency,"
+            " or run a research on the cause with a refactor feature as its possible result"
+        )
     if plan["field"] == "bugs":
         states = {f"{m['id']}-{row['ID']}": row["State"] for m in milestones() for row in m["features"]}
         for row in milestone["bugs"]:
@@ -236,6 +263,7 @@ def tuning():
                 print(f"tune {row['ID']}: add one line to docs/REVIEW.md that describes the failure '{row['Bug']}'")
     problems.record("tuning done")
     problems.save()
+    commit(f"Tuning done: {plan['id']}", [problems.path], verify=False)
 
 
 def plan_rows(problems):
@@ -275,7 +303,7 @@ def sync():
         return
     require_branch()
     if not clean_tree():
-        fail("the work tree is not clean, commit the changes first")
+        fail(unclean())
     if git_ok("merge-base", "--is-ancestor", target, "HEAD"):
         print(f"plan {plan['id']} holds the tip of {target}")
         return
@@ -313,8 +341,21 @@ def reviewed():
         fail(f"the round cap is {MAX_ROUNDS}: record the pass, or {PLAN_HINT}")
     if count and not posted_important(plan_rows(problems), count):
         fail(f"round {count} posted no Important problem: answer the problems, then record the pass")
+    if count == 0:
+        # the full run of the plan checks before the review, so a broken test that no step names shows up before the merge
+        failed = False
+        for kind, name in plan_checks(plan):
+            if kind != "COMMAND":
+                continue
+            code, output = test.execute(kind, name)
+            if code != 0:
+                failed = True
+                print(f"the check 'COMMAND {name} passes' fails:\n{output}")
+        if failed:
+            print("name each failing test in the task of the plan review")
     problems.record("plan reviewed")
     problems.save()
+    commit(f"Plan reviewed: {plan['id']}", [problems.path], verify=False)
     print(f"plan review round {count + 1}")
 
 
@@ -389,15 +430,16 @@ def merge(plan_id):
         shell(["git", "reset", "--hard", "HEAD"])
         marker.unlink()
     if not clean_tree():
-        fail("the work tree of the main repository is not clean, commit the changes first")
+        fail(unclean("the work tree of the main repository"))
     errors = []
     if path.exists() and shell(["git", "status", "--porcelain"], cwd=path)[1].strip():
-        errors.append(f"the worktree {path} is not clean, commit the changes there")
+        errors.append(unclean(f"the worktree {path}", path))
     if not git_ok("merge-base", "--is-ancestor", "HEAD", name):
         errors.append(f"the plan branch does not hold the tip of {branch()}: run python -m tools.plan_close sync in {path}")
     if errors:
         fail("plan merge:\n" + "\n".join(errors))
-    changed = git("diff", "--name-only", created_commit(plan), name).splitlines()
+    # the plan branch holds the tip of the milestone branch, so this diff holds the own changes of the plan only
+    changed = git("diff", "--name-only", "HEAD", name).splitlines()
     # the squash puts the state of the plan branch into this work tree; the checks run on it before the commit
     write(marker, plan_id + "\n")
     code, output = shell(["git", "merge", "--squash", name])
@@ -432,13 +474,16 @@ def merge(plan_id):
 def merged_tree_errors(plan):
     """The failures of the checks on the merged tree: the full check, then in one call of the runner the checks of
     the Verification section and each test file that the plan changed or added."""
+    # a feature that joined the plan after its creation leaves the tables of the milestone stale; the merge owns them
+    progress.regenerate()
+    shell(["git", "add", "--", "docs/milestones"])
     # the staged squash is the work of a tool, so the commit order check accepts its source files
     code, output = tool("check", env={TOOL_COMMIT: "1"})
     if code != 0:
         return [f"python -m tools.check fails:\n{output}"]
     failures = []
     names = [name for kind, name in plan_checks(plan) if kind == "TEST"]
-    names += [name for name in test.changed_tests(created_commit(plan)) if name not in names]
+    names += [name for name in test.changed_tests("HEAD") if name not in names]
     if names:
         code, output = test.execute("TEST", names)
         if code != 0:
@@ -471,7 +516,7 @@ def gate(plan, milestone, problems):
     base = close_base(plan)
     errors = []
     if not clean_tree():
-        errors.append("the work tree is not clean. Discard the changes of an interrupted close, then run again")
+        errors.append(unclean() + "\nDiscard the changes of an interrupted close, then run again")
     changed = [name for name in git("diff", "--name-only", base, "HEAD").splitlines() if name.startswith(roots())]
     if changed:
         errors.append("a source or test file changed after the merge of the plan, revert the change: " + " ".join(changed))
@@ -612,30 +657,29 @@ def block():
     print(f"plan {plan['id']} is blocked, ask the user: accept, drop or replan")
 
 
-def unblock(args):
+def unblock(args, answer):
     plan, milestone, problems = worktree_context()
     if plan["meta"]["status"] != "blocked":
         fail(f"plan {plan['id']} is not blocked")
     choice = args[0] if args else ""
-    if choice == "accept" and len(args) == 2:
-        item, reason = "", args[1]
-    elif choice == "drop" and len(args) == 3:
-        item, reason = args[1], args[2]
-    elif choice == "replan" and len(args) == 2:
-        item, reason = args[1], args[1]
+    if choice == "accept" and len(args) == 1:
+        item = ""
+    elif choice in ("drop", "replan") and len(args) == 2:
+        item = args[1]
     else:
-        fail('usage: python -m tools.plan_close unblock <accept "<reason>" | drop <id> "<reason>" | replan <id>>')
-    if not 1 <= words(reason) <= 12 or "|" in reason:
-        fail("the reason must have 1 to 12 words")
+        fail('usage: python -m tools.plan_close unblock <accept | drop <id> | replan <id>> --answer "<reason of the user>"')
     if item and item not in plan["ids"]:
         fail(f"{item} is not an id of plan {plan['id']}")
+    ids = open_plan_important(problems)
+    reason = user_reason(answer, f"Open problems of plan {plan['id']}: {' '.join(ids)}. Why does the user choose {choice}?")
     if choice in ("drop", "replan") and plan["field"] == "bugs":
         problems.record("bug verified withdrawn", item)
-    ids = open_plan_important(problems)
+    changed = []
     for row in problems.rows:
         if row["ID"] in ids:
+            changed.append(f"{row['ID']}={row['Answer'] or 'open'}")
             row["Answer"] = f"user {choice} {reason}"
-    problems.record("plan unblocked", choice, *([item] if item else []))
+    problems.record("plan unblocked", choice, *([item] if item else []), "old:", *changed, "new:", f"user {choice} {reason}")
     problems.save()
     plan["meta"]["status"] = "in progress"
     save_plan(plan)
@@ -656,7 +700,7 @@ def run(args):
     if command == "merge" and len(rest) == 1:
         return merge(rest[0])
     if command == "unblock":
-        return unblock(rest)
+        return unblock(rest, answer)
     simple = {"sync": sync, "tuning": tuning, "reviewed": reviewed, "review-passed": review_passed, "block": block}
     if command in simple and not rest:
         return simple[command]()
@@ -664,7 +708,7 @@ def run(args):
         "usage: python -m tools.plan_close [close | merge <plan> | tuning"
         " | check [<id> --answer yes|no [--by agent]] | verify-bug <bug>]\n"
         "in the worktree of the plan: python -m tools.plan_close <sync | reviewed | review-passed | block"
-        ' | unblock <accept "<reason>" | drop <id> "<reason>" | replan <id>>>'
+        ' | unblock <accept | drop <id> | replan <id>> --answer "<reason of the user>">'
     )
 
 

@@ -14,13 +14,13 @@ The problem format is in `docs/REVIEW.md`. The file format is in `docs/DOCS_CONV
 5. Name the design sections that the step touches, not whole documents. Name the dependency rows of the step, the test command and its duration.
 6. Name the dependency sources: the path that `python -m tools.project source` prints, unless it prints `none`.
 7. In a later round, give it the new diff only and the problem rows of the round before with their answers.
-8. For a bug step with a mutation run, name the mutation of the report. The reviewer checks that the mutation breaks the guarded behavior and that no commit holds a part of it.
-9. Write one row per posted problem into the `Problems` table. Use the next free problem id.
-10. Fill `Step`, `Round`, `Severity`, `Rule`, `Topic`, `Location`, `Trigger`, `Class` and `Fix`. Leave `Answer` and `Check` empty. Run `python -m tools.check` with the path of the problems file and fix each sentence that it names.
-11. In a later round, write the result of the reviewer into the `Check` cell of each problem of the round before. When the reviewer posts the trigger of a re-raised problem again as a new row, write `carried <id of the new row>` instead of `re-raised`.
+8. For a bug step with a mutation run, name the patch of the report. The reviewer checks that the patch breaks the guarded behavior and that the evidence shows its run with `mutation:`.
+9. Add one row per posted problem with `python -m tools.step_close add-problem <step> <round> <severity> <rule> "<topic>" "<location>" "<trigger>" "<class>" "<fix>"`. The tool gives the next id, validates each cell and commits. When it names a broken rule, correct that value and run it again.
+10. In a later round, write the result of the reviewer for each problem of the round before with `python -m tools.step_close check-problem <problem> "<check>"`. When the reviewer posts the trigger of a re-raised problem again as a new row, write `carried <id of the new row>` instead of `re-raised`.
+11. When round 3 posted an `Important` problem, run the short check after its fix. Start the reviewer with the fixed problems only. It confirms or re-raises each fix and posts nothing new. Write each result with `check-problem`.
 12. Leave the answer of a `Pre-existing` problem empty. The plan close reports it as a bug.
 13. Report the count of problems to the caller.
 
 ## Rules
-- Do not change a problem that the reviewer posted. Do not drop one.
+- Never edit the problems file. The write hook refuses it, and the tools write each row and cell.
 - Do not answer a problem in this skill. The implementor answers it.

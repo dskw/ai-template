@@ -7,6 +7,7 @@ from tools._lib import (
     PLAN_TYPES,
     PLANS,
     PROBLEM_HEADER,
+    RESEARCH_CHECK,
     active_plans,
     commit,
     dependency_errors,
@@ -134,8 +135,8 @@ def validate(plan, milestone):
             errors.append(f"{name}: {step['Step']}: the step text must have 1 to 20 words")
         if not parse_check(step["Verification"]):
             errors.append(f"{name}: {step['Step']}: the verification must be 'TEST <name> passes', 'COMMAND <name> passes' or 'MANUAL <name>'")
-        elif plan["field"] == "bugs" and step["Verification"] != acceptance.get(step["Feature"]):
-            errors.append(f"{name}: {step['Step']}: the verification must be the acceptance of {step['Feature']}")
+        elif plan["field"] == "bugs" and step["Verification"] not in (acceptance.get(step["Feature"]), RESEARCH_CHECK):
+            errors.append(f"{name}: {step['Step']}: the verification must be the acceptance of {step['Feature']}, or the research check of a diagnosis")
         errors += dependency_errors(step["Dependencies"], f"{name}: {step['Step']}")
     if plan["field"] == "features":
         refactors = {row["ID"] for row in milestone["features"] if row["Type"] == "refactor"}
@@ -152,8 +153,9 @@ def validate(plan, milestone):
             }
             if len(tests) > 1:
                 errors.append(f"{name}: {item} has the tests {', '.join(sorted(tests))}; its steps share one test")
+    # a fix plan can start with the research step of a diagnosis; each bug still has one fix step
     for item in plan["ids"]:
-        count = sum(step["Feature"] == item for step in plan["steps"])
+        count = sum(step["Feature"] == item and (plan["field"] != "bugs" or step["Verification"] != RESEARCH_CHECK) for step in plan["steps"])
         if count == 0 or (plan["field"] == "bugs" and count != 1):
             errors.append(f"{name}: {item} needs {'one step' if plan['field'] == 'bugs' else 'a step'}")
     checks = [line[2:] for line in (section(plan["text"], "Verification") or "").split("\n") if line.startswith("- ")]

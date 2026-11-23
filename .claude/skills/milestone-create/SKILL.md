@@ -19,7 +19,7 @@ The format and the rules of a milestone file are in `docs/DOCS_CONVENTIONS.md`, 
 9. Tell the user each feature that meets a trigger of the section Research of `plan-create`, as `needs research`.
 10. Write a bug row for each open bug that this milestone takes over. Give each row a new id.
 11. Start the `reviewer` agent with the effort `medium`, the scope document review and the path of the draft file.
-12. Fix each problem in the draft file. When the review posted an `Important` problem, run a second review of the answers and the changed lines only, up to three reviews.
+12. Fix each problem in the draft file. When the review posted an `Important` problem, run a further review of the answers and the changed lines only, up to three reviews. Follow the section Document review of `docs/DOCS_CONVENTIONS.md`.
 13. Run `python -m tools.milestone_create commit <id>`. Fix each item that it names and run it again.
     When no milestone is open and no earlier draft waits, run `python -m tools.milestone_create open <id>`. It creates the milestone branch and opens the milestone.
     Else stop after the commit and tell the user that the draft waits for the close of the open milestone.

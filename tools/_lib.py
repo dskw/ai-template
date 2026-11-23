@@ -28,7 +28,9 @@ DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 CHECK = re.compile(r"^(?:(TEST|COMMAND) (\S+) passes|(MANUAL) (\S+))$")
 
 FEATURE_HEADER = ["ID", "Feature", "Type", "Acceptance", "Plans", "State"]
-BUG_HEADER = ["ID", "Bug", "Feature", "Source", "Acceptance"]
+BUG_HEADER = ["ID", "Bug", "Feature", "Source", "Acceptance", "Cause"]
+# a milestone file from before the Cause column keeps its table
+OLD_BUG_HEADER = ["ID", "Bug", "Feature", "Source", "Acceptance"]
 STEP_HEADER = ["Step", "Feature", "Text", "Verification", "Dependencies"]
 # a plan from before the Dependencies column keeps its table
 OLD_STEP_HEADER = ["Step", "Feature", "Text", "Verification"]
@@ -67,9 +69,23 @@ TOOL_OWNED = [
     "docs/milestones/archive/**",
     "docs/plans/archive/**",
     "docs/plans/*/progress.md",
+    "docs/plans/*/problems.md",
     "docs/plans/*/evidence/**",
     "docs/plans/IDEAS.md",
     "docs/DEPENDENCIES.md",
+]
+# the tool that writes each file of a tool, for the message of a refused work tree
+WRITERS = [
+    ("docs/plans/*/problems.md", "the problem commands of python -m tools.step_close, or a state tool"),
+    ("docs/plans/*/plan.md", "python -m tools.step_close or python -m tools.plan_close"),
+    ("docs/plans/*/progress.md", "python -m tools.step_close"),
+    ("docs/plans/*/evidence/**", "python -m tools.test"),
+    ("docs/plans/IDEAS.md", "python -m tools.ideas"),
+    ("docs/DEPENDENCIES.md", "python -m tools.dependency"),
+    ("docs/milestones/**", "python -m tools.progress or a milestone tool"),
+    ("docs/MEMORY.md", "python -m tools.memory_index"),
+    ("docs/wiki/index.html", "python -m tools.build_wiki_bundle"),
+    ("docs/wiki/assets/**", "python -m tools.build_wiki_bundle"),
 ]
 # a milestone file and a plan file are editable while their status is draft, then only a tool writes them
 DRAFT_ONLY = ["docs/milestones/M*.md", "docs/plans/*/plan.md"]
@@ -109,7 +125,11 @@ RECORD_TYPES = [
     "tuning done",
     "approved",
     "rejected",
+    "text changed",
+    "dependencies removed",
 ]
+# the record lines of a milestone file, in its optional section Records
+MILESTONE_RECORD_TYPES = ["feature dropped", "bug dropped", "milestone reviewed"]
 
 
 class Fail(Exception):
@@ -193,9 +213,25 @@ def clean_tree():
     return git("status", "--porcelain") == ""
 
 
-def dirty_files():
-    code, output = run(["git", "status", "--porcelain"])
+def dirty_files(cwd=None):
+    code, output = run(["git", "status", "--porcelain"], cwd=cwd)
     return [line[3:].split(" -> ")[-1].strip('"') for line in output.splitlines() if len(line) > 3]
+
+
+def writer(name):
+    """The tool that writes a file, or None for a file that no tool writes."""
+    if any_match(name, [pattern for pattern in GENERATED if not pattern.startswith("docs/")]):
+        return "python -m tools.provider"
+    return next((tool_name for pattern, tool_name in WRITERS if glob_match(name, pattern)), None)
+
+
+def unclean(place="the work tree", cwd=None):
+    """The message for a work tree that is not clean: each changed file with the tool that wrote it."""
+    lines = [f"{place} is not clean:"]
+    for name in dirty_files(cwd):
+        found = writer(name)
+        lines.append(f"  {name}: written by {found}, which commits its own write" if found else f"  {name}: commit this change")
+    return "\n".join(lines)
 
 
 def subjects():
@@ -524,8 +560,43 @@ def load_milestone(path):
         "name": meta["name"],
         "archived": path.parent.name == "archive",
         "features": read_table(text, "Features", FEATURE_HEADER, name),
-        "bugs": read_table(text, "Bugs", BUG_HEADER, name),
+        "bugs": read_table(text, "Bugs", BUG_HEADER, name, OLD_BUG_HEADER),
+        "records": record_lines(text, name, MILESTONE_RECORD_TYPES),
     }
+
+
+def record_lines(text, name, kinds):
+    """The record lines of the optional section Records of a milestone file as type, ids and date."""
+    lines = text.split("\n")
+    if "## Records" not in lines:
+        return []
+    records = []
+    for number in range(lines.index("## Records") + 1, len(lines)):
+        if lines[number].startswith("## "):
+            break
+        if not lines[number].strip():
+            continue
+        tokens = lines[number].removeprefix("- ").split()
+        found = None
+        for kind in kinds:
+            size = len(kind.split())
+            if tokens[:size] == kind.split() and len(tokens) > size and DATE.match(tokens[-1]):
+                found = {"type": kind, "ids": tokens[size:-1], "date": tokens[-1]}
+                break
+        if not found:
+            fail(f"{name}:{number + 1}: not a record line of the form - <type> <ids> <date>")
+        records.append(found)
+    return records
+
+
+def add_milestone_record(milestone, kind, *ids):
+    """Appends a record line to the section Records of a milestone file. The first record adds the section."""
+    line = "- " + " ".join([kind, *ids, today()])
+    text = milestone["text"].rstrip("\n")
+    if "\n## Records" not in text:
+        text += "\n\n## Records"
+    milestone["text"] = text + "\n" + line + "\n"
+    milestone["records"].append({"type": kind, "ids": list(ids), "date": today()})
 
 
 def save_milestone(milestone):
@@ -717,7 +788,9 @@ class Problems:
             if lines[number].strip():
                 self.records.append(self.parse(lines[number], number + 1))
         for row in self.rows:
-            self.validate(row)
+            errors = row_errors(row, self.header)
+            if errors:
+                fail(f"{self.rel}: problem {row['ID']}: {errors[0]}")
 
     def parse(self, line, number):
         tokens = line.removeprefix("- ").split()
@@ -726,27 +799,6 @@ class Problems:
             if tokens[:size] == kind.split() and len(tokens) > size and DATE.match(tokens[-1]):
                 return {"type": kind, "ids": tokens[size:-1], "date": tokens[-1]}
         fail(f"{self.rel}:{number}: not a record line of the form - <type> <ids> <date>")
-
-    def validate(self, row):
-        name = f"{self.rel}: problem {row['ID']}"
-        if not PROBLEM_ID.match(row["ID"]):
-            fail(f"{name}: the id must have the form N[NN]")
-        if row["Step"] != "plan" and not STEP_ID.match(row["Step"]):
-            fail(f"{name}: Step must be a step id or 'plan'")
-        if row["Round"] not in ROUNDS:
-            fail(f"{name}: Round must be 1, 2 or 3")
-        if row["Severity"] not in ("Important", "Nit", "Pre-existing"):
-            fail(f"{name}: Severity must be Important, Nit or Pre-existing")
-        for cell in ("Rule", "Location", "Trigger", "Class", "Fix"):
-            if not row[cell]:
-                fail(f"{name}: the cell {cell} is empty")
-        if self.header == PROBLEM_HEADER and not 1 <= words(row["Topic"]) <= 2:
-            fail(f"{name}: Topic must have one or two words")
-        answer = row["Answer"]
-        if answer and not re.match(r"^(fixed \S+|closed (wrong|intentional|prevented) \S.*|reverted|user \S.*|fix \S+|bug \S+)$", answer):
-            fail(f"{name}: Answer must be 'fixed <commit>' or 'closed <wrong|intentional|prevented> <reason>'")
-        if row["Check"] and not re.match(r"^(confirmed|re-raised \S.*|carried N\d{2})$", row["Check"]):
-            fail(f"{name}: Check must be 'confirmed', 're-raised <trigger>' or 'carried <id>'")
 
     def record(self, kind, *ids):
         line = "- " + " ".join([kind, *ids, today()])
@@ -775,8 +827,39 @@ class Problems:
         write(self.path, self.text)
 
 
+SEVERITIES = ("Important", "Nit", "Pre-existing")
+# the answers that an agent writes with the answer command, and the answers that only a state tool writes
+AGENT_ANSWER = re.compile(r"^(fixed \S+|closed (wrong|intentional|prevented) \S.*|bug \S+)$")
+TOOL_ANSWERS = ("reverted", "user ", "fix ")
+CHECK_CELL = re.compile(r"^(confirmed|re-raised \S.*|carried N\d{2})$")
+
+
+def row_errors(row, header=PROBLEM_HEADER):
+    """The errors of one problem row, each with the rule that it breaks."""
+    errors = []
+    if not PROBLEM_ID.match(row["ID"]):
+        errors.append("D65: the id must have the form N[NN]")
+    if row["Step"] != "plan" and not STEP_ID.match(row["Step"]):
+        errors.append("D65: Step must be a step id or 'plan'")
+    if row["Round"] not in ROUNDS:
+        errors.append("D76: Round must be 1, 2 or 3")
+    if row["Severity"] not in SEVERITIES:
+        errors.append("docs/REVIEW.md, Problem format: Severity must be Important, Nit or Pre-existing")
+    for cell in ("Rule", "Location", "Trigger", "Class", "Fix"):
+        if not row[cell]:
+            errors.append(f"docs/REVIEW.md, Problem format: the cell {cell} is empty")
+    if header == PROBLEM_HEADER and not 1 <= words(row["Topic"]) <= 2:
+        errors.append("D205: Topic must have one or two words")
+    answer = row["Answer"]
+    if answer and not (AGENT_ANSWER.match(answer) or answer == "reverted" or re.match(r"^(user \S.*|fix \S+)$", answer)):
+        errors.append("D66: Answer must be 'fixed <commit>' or 'closed <wrong|intentional|prevented> <reason>'")
+    if row["Check"] and not CHECK_CELL.match(row["Check"]):
+        errors.append("D69: Check must be 'confirmed', 're-raised <trigger>' or 'carried <id>'")
+    return errors
+
+
 def settled(row):
-    return row["Severity"] == "Pre-existing" or row["Answer"].startswith(("reverted", "user ", "fix "))
+    return row["Severity"] == "Pre-existing" or row["Answer"].startswith(TOOL_ANSWERS)
 
 
 # a review has max 3 rounds; a further round runs only when the round before posted an Important problem
@@ -821,14 +904,14 @@ def problem_errors(rows, hint, held):
 
 def open_important(rows, held):
     """The Important problems that stay open after `held` rounds: unanswered, re-raised in the last round, or
-    posted in the last round."""
+    posted in the last round without the short check of their fix."""
     last = held >= MAX_ROUNDS
     return [
         row["ID"]
         for row in rows
         if not settled(row)
         and row["Severity"] == "Important"
-        and (not row["Answer"] or (last and (row["Check"].startswith("re-raised") or row["Round"] == str(held))))
+        and (not row["Answer"] or (last and (row["Check"].startswith("re-raised") or (row["Round"] == str(held) and not row["Check"]))))
     ]
 
 
@@ -872,6 +955,60 @@ def ask(question, answer=None):
     if answer not in ("yes", "no", "y", "n"):
         fail("the answer must be yes or no")
     return answer.startswith("y")
+
+
+# the records of a manual check; a record of the current form ends with the name of the check and the checked commit
+MANUAL_RECORDS = ("manual passed", "manual failed", "plan manual passed", "plan manual failed", "milestone manual passed", "milestone manual failed")
+SETUP_PATHS = ["tools/**", ".agents/**", "AGENTS.md", ".claude/**", ".codex/**", ".kilo/**", "CLAUDE.md", ".mcp.json", "kilo.jsonc", ".vale.ini"]
+
+
+def product_changes(commit_hash):
+    """The files of the product that changed since a commit, committed or not: each file outside `docs/` and the
+    setup, except a Markdown file."""
+    names = set(git("diff", "--name-only", commit_hash).splitlines()) | set(git("ls-files", "-o", "--exclude-standard").splitlines())
+    return sorted(name for name in names if not name.startswith("docs/") and not name.endswith(".md") and not any_match(name, SETUP_PATHS))
+
+
+def earlier_pass(all_problems, name):
+    """The newest manual record of the check `name` that names its commit, and the product files that changed since
+    that commit. A failed record or no record gives (None, [])."""
+    found = []
+    for problems in all_problems:
+        for record in problems.records:
+            ids = record["ids"]
+            if record["type"] in MANUAL_RECORDS and len(ids) >= 2 and ids[-2] == name and re.fullmatch(r"[0-9a-f]{7,40}", ids[-1]):
+                code, stamp = run(["git", "log", "-1", "--format=%ct", ids[-1]])
+                if code == 0 and stamp.strip().isdigit():
+                    found.append((int(stamp.strip()), len(found), record))
+    if not found:
+        return None, []
+    record = max(found, key=lambda item: item[:2])[2]
+    if not record["type"].endswith("passed"):
+        return None, []
+    return record, product_changes(record["ids"][-1])
+
+
+def manual_answer(all_problems, name, question, answer):
+    """Whether the manual check `name` passed, and the source of the result. Without `--answer`, an earlier pass holds
+    while no product file changed since its commit. After such a change, the question names the changed files."""
+    if answer is not None:
+        return ask(question, answer), "answer"
+    record, changed = earlier_pass(all_problems, name)
+    if record and not changed:
+        return True, f"earlier pass at {record['ids'][-1]}"
+    if record:
+        question += f"\nThe pass at {record['ids'][-1]} no longer holds, these files changed since: {' '.join(changed)}"
+    return ask(question, None), "answer"
+
+
+def user_reason(answer, question, limit=12):
+    """The reason of the user that `--answer` passes. The permission rule on `--answer` makes it the user key."""
+    if answer is None:
+        fail(f'{question}\nAsk the user, then run the command again with --answer "<answer of the user>"')
+    text = " ".join(answer.split())
+    if not 1 <= words(text) <= limit or "|" in text:
+        fail(f"the answer of the user must have 1 to {limit} words and no '|'")
+    return text
 
 
 def take_option(args, name):

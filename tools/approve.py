@@ -17,6 +17,7 @@ from tools._lib import (
     require_worktree,
     subjects,
     take_option,
+    unclean,
 )
 
 
@@ -54,7 +55,7 @@ def run(args):
         fail(f"the active plan is {plan['id']}")
     require_branch()
     if not clean_tree():
-        fail("the work tree is not clean, commit the changes first")
+        fail(unclean())
     target = args[1]
     if target == "close":
         require_main()

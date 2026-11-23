@@ -21,7 +21,7 @@ The format and the rules of a plan file are in `docs/DOCS_CONVENTIONS.md`, secti
 12. When a step adds one more instance of a type, check it against the row `DEP-01`. When the instance would repeat knowledge of the type in another place, stop and tell the user that a refactor comes first.
 13. Write the checks of the plan into the `Verification` section, one check per list line. List the checks of the steps and the validation of each named dependency that is a check. Add each test that covers the code that the plan changes.
 14. A fix plan needs no document review: continue at step 16. Run `python -m tools.plan_create reviewed`. Start the `reviewer` agent with the effort `medium`, the scope document review and the path of `plan.md`. Name `docs/TEST_CONVENTIONS.md` and `docs/DEPENDENCIES.md` as further rule sources.
-15. Fix each problem in the draft. When the review posted an `Important` problem, run step 14 again for the answers and the changed lines only, up to three reviews.
+15. Fix each problem in the draft. When the review posted an `Important` problem, run step 14 again for the answers and the changed lines only, up to three reviews. Follow the section Document review of `docs/DOCS_CONVENTIONS.md`.
 16. Run `python -m tools.plan_create commit`. Fix each item that it names and run it again. It creates the branch and the worktree of the plan and prints the folder.
 17. Tell the user the folder of the worktree. A session that works in that folder runs the steps of the plan.
 
@@ -43,9 +43,15 @@ An id needs research when one of these triggers holds:
 When the cut of the steps depends on the answer, run `research-run` before you write the steps. Write the steps from its recommendation and name the research id in the step text.
 When only the detail of the id depends on the answer, write a research step as its first step. The step text is the question. Its verification is `COMMAND research_check passes` and its `Dependencies` cell is `none`.
 A research file that answers the question already replaces both.
+A refactor plan that changes a part with 20 or more callers needs a research with a spike, under the section Spike of `research-run`.
+When a step rests on a fact that the research marks as `read`, its text says so.
 
 ## Open problems of an earlier plan
 Search the archived plans of each id for problems with the answer `user replan`. Write each of them into the step text of the step that solves it.
 
 ## Fix plan steps
 Each bug has one step. The verification of the step is the acceptance check of the bug.
+1. Search the ideas file and the research files for the topic of each bug. Name each match in the step text of its bug.
+2. When a bug has no cause in its row, write a diagnosis as the first step. It is a research step with the question `What causes these bugs, and which bugs share a cause?` and the first such bug as its id. A bug with a cause needs none.
+3. After the diagnosis, the research file names per bug the cause and the section that the fix follows. Show the user each new step text, then write it with `python -m tools.step_close set-text <step> "<text>" --answer yes`.
+4. Bugs with one cause share one fix. The step of the first bug of the group fixes the cause. Each further step of the group adds its regression test and shows its failing run with a mutation run.

@@ -5,6 +5,7 @@ description: Closes a plan in two parts. In the worktree it runs the sync, the w
 # plan-close
 
 The rules are in `docs/DOCS_CONVENTIONS.md`, sections Plan close, Tuning and Gates.
+Before each command with `--answer`, ask the user in the chat and wait for the answer. A request for a change is not its approval. Run that command alone, with no second command.
 
 ## Part 1: in the worktree of the plan
 1. Run `python -m tools.progress status`. Continue only when it prints that no step is open.
@@ -16,14 +17,14 @@ The rules are in `docs/DOCS_CONVENTIONS.md`, sections Plan close, Tuning and Gat
 ## Part 2: in the main repository
 1. Run `python -m tools.plan_close merge <plan>`. It runs the checks and the tests of the plan on the merged tree.
 2. When the merge names a failure, go back to the worktree. A failing test goes into the task of `review-plan`, and a fix step carries the fix. Then run step 1 again.
-3. Run `bug-report` for each `Pre-existing` problem without an answer, with the plan id and the problem id as source. Write `bug <id>` as its answer.
-4. Run `bug-report` for each problem whose answer of the user accepts it. These are the `accept` choice of a blocked plan and each non-breaking problem that moved to the bug list.
+3. Run `bug-report` for each `Pre-existing` problem without an answer, with the plan id and the problem id as source. Write the answer with `python -m tools.step_close answer-problem <problem> "bug <id>"`.
+4. Run `bug-report` for each problem whose answer of the user accepts it. These are the `accept` choice of a blocked plan and each accepted problem of a step.
 5. Run `memory-consolidate`. Run `memory-save` for each row of `extensions.md` with the prefix `Memory:`. Add a finding to `docs/ai-setup-adjustments.md` for each row with the prefix `Setup:`.
-6. Run `python -m tools.plan_close tuning`. Decide for each line that starts with `tune` whether a rule change helps. Prepare the change when it does. For a `tune topic` line of a system of the project, run `dependency-add`.
-7. Show the user each entry of `extensions.md` without decision and each prepared tuning change. Ask for the decisions.
+6. Run `python -m tools.plan_close tuning`. Decide for each line that starts with `tune` whether a rule change helps. Prepare the change when it does. For a `tune topic` line of a system of the project, run `dependency-add`. For a topic that came back, also weigh a research on its cause, with a refactor feature as its possible result.
+7. Show the user each entry of `extensions.md` without decision and each prepared tuning change. State for each entry whether it names the cause of an open bug or of a problem that came back. Ask for the decisions.
 8. Write each decision into `extensions.md`. A saved `Memory:` or `Setup:` row gets the decision `dropped` with the place as reason. Run `python -m tools.progress add-feature` for each approved entry. Use the type `refactor` for the decision `refactor`. Run `idea-add` with the source `agent` for each entry that fits no planned milestone. When the new feature conflicts with an item of `Out of scope`, run `python -m tools.progress out-of-scope remove "<item>"` in the same turn.
 9. Apply the tuning changes that the user agreed to.
-10. Run `python -m tools.plan_close check`. For a manual check, prepare the package of the section Manual verification of `step-run` in `docs/plans/<plan>/tmp/manual-check/`. Ask the user and pass the answer as the tool prints. A `MANUAL` line of the plan verification is a manual check too, also when each feature has a test as acceptance. The plan gate refuses the close without its passed record.
+10. Run `python -m tools.plan_close check`. It accepts an earlier pass of a manual check while no product file changed since. Never pass an earlier answer of the user on to a later gate. The tool decides whether an earlier pass still holds. For a manual check, prepare the package of the section Manual verification of `step-run` in `docs/plans/<plan>/tmp/manual-check/`. Ask the user and pass the answer as the tool prints. A `MANUAL` line of the plan verification is a manual check too, also when each feature has a test as acceptance. The plan gate refuses the close without its passed record.
 11. For a fix plan, run `bug-fix`. For a refactor plan, run `dependency-remove` for each dependency whose trigger the refactor removed.
 12. Commit the writes of the steps before.
 13. When a protected path changed, ask the user and run `python -m tools.approve <plan> close --answer <yes|no>`.

@@ -1,8 +1,11 @@
 import re
 
-from tools import progress, test
+from tools import docs_lint, progress, test
 from tools._lib import (
+    AGENT_ANSWER,
     BUG_ID,
+    CHECK_CELL,
+    TOOL_ANSWERS,
     FEATURE_ID,
     FIX_HEADER,
     RESEARCH_CHECK,
@@ -17,9 +20,11 @@ from tools._lib import (
     fail,
     find_step,
     git,
+    git_ok,
     has_commit,
     load_project,
     main,
+    manual_answer,
     next_id,
     MAX_ROUNDS,
     open_important,
@@ -30,15 +35,20 @@ from tools._lib import (
     progress_row,
     dependency_errors,
     dependency_rows,
+    read,
     require_branch,
     require_plan,
     require_worktree,
+    row_errors,
     run as shell,
     save_plan,
     settled,
     take_option,
     tool,
+    unclean,
+    user_reason,
     words,
+    write,
     write_table,
 )
 from tools.approve import step_base
@@ -110,6 +120,7 @@ def review(step_id):
         fail(f"round {count} posted no Important problem: answer the problems, then close the step")
     problems.record("step reviewed", step_id)
     problems.save()
+    commit(f"Step reviewed: {plan['id']} {step_id}", [problems.path], verify=False)
     print(f"review round {count + 1} of step {step_id}")
 
 
@@ -130,7 +141,7 @@ def revert(step_id):
     if reverts(problems, step_id) >= 1:
         fail(f"a step has one new attempt: run python -m tools.step_close block {step_id}")
     if not clean_tree():
-        fail("the work tree is not clean, commit the changes first")
+        fail(unclean())
     base = step_base(problems, step_id)
     # the own commits of the plan branch only: a merge of the milestone branch brings the work of other plans
     lines = git("log", "--first-parent", "--no-merges", "--format=%H%x09%s", f"{base}..HEAD").splitlines()
@@ -194,19 +205,23 @@ def step_text(text):
     return text
 
 
-def set_text(step_id, text):
-    """Writes the new text of an open step, or of a reverted step before its new attempt, after the user approved
-    the change."""
+def set_text(step_id, text, answer):
+    """Writes the new text of a step that is not complete, after the user approved the change. The record keeps the
+    old and the new text."""
     plan, milestone, problems, row = context(step_id)
-    reverted = row["State"] == "in progress" and last_record(problems, step_id) == "step reverted"
-    if row["State"] != "open" and not reverted:
-        fail(f"step {step_id} has state {row['State']}, only an open or a reverted step takes a new text")
+    if row["State"] == "complete":
+        fail(f"step {step_id} is complete, a complete step takes no new text")
     text = step_text(text)
     step = find_step(plan, step_id)
+    old = step["Text"]
+    if not ask(f"Change the text of {step_id} from '{old}' to '{text}': did the user approve it?", answer):
+        fail("the user did not approve the new text")
     step["Text"] = text
     heading, header, rows = ("Fix steps", FIX_HEADER, plan["fixes"]) if step in plan["fixes"] else ("Steps", STEP_HEADER, plan["steps"])
     plan["text"] = write_table(plan["text"], heading, header, rows, plan["rel"])
     save_plan(plan)
+    problems.record("text changed", step_id, "old:", old, "new:", text)
+    problems.save()
     commit(f"Step changed: {plan['id']} {step_id}", [plan["dir"]], verify=False)
     print(f"step {step_id} has the new text")
 
@@ -228,6 +243,10 @@ def insert_refactor(feature_id, text, verification, answer):
         fail("the verification must be 'TEST <name> passes', 'COMMAND <name> passes' or 'MANUAL <name>'")
     if not ask(f"Insert the refactor step '{text}' for {feature_id} before the open steps: did the user approve it?", answer):
         fail("the user did not approve the refactor step")
+    # a reverted step waits for its new attempt: it goes back to open, so the refactor step runs first
+    for row in plan["progress"]:
+        if row["State"] == "in progress" and last_record(problems, row["Step"]) == "step reverted":
+            row["State"] = "open"
     position = next((index for index, row in enumerate(plan["progress"]) if row["State"] == "open"), None)
     if position is None:
         fail("the plan has no open step")
@@ -297,12 +316,11 @@ def add_check(check, answer):
     print(f"the verification holds {check}")
 
 
-def set_dependencies(step_id, cell):
-    """Writes the Dependencies cell of an open step or a step in progress, for a row that a review found, and adds the
-    validation of each named row that is a check to the verification of the plan."""
+def set_dependencies(step_id, cell, answer=None):
+    """Writes the Dependencies cell of a step of the running plan, for a row that a review found, and adds the
+    validation of each named row that is a check to the verification of the plan. A cell that drops a named row loosens
+    the plan, so it needs the approval of the user."""
     plan, milestone, problems, row = context(step_id)
-    if row["State"] not in ("open", "in progress"):
-        fail(f"step {step_id} has state {row['State']}, only an open step or a step in progress takes new dependencies")
     step = find_step(plan, step_id)
     if step in plan["fixes"]:
         fail(f"{step_id} is a fix step, it has no Dependencies cell")
@@ -310,6 +328,13 @@ def set_dependencies(step_id, cell):
     errors = dependency_errors(cell, step_id)
     if errors:
         fail("\n".join(errors))
+    old = step["Dependencies"]
+    removed = [item for item in old.split() if item != "none" and item not in cell.split()]
+    if removed:
+        if not ask(f"Remove {' '.join(removed)} from the dependencies of {step_id}: did the user approve it?", answer):
+            fail("the user did not approve the removal")
+        problems.record("dependencies removed", step_id, "old:", old, "new:", cell)
+        problems.save()
     step["Dependencies"] = cell
     plan["text"] = write_table(plan["text"], "Steps", STEP_HEADER, plan["steps"], plan["rel"])
     validations = {item["ID"]: item["Validation"] for item in dependency_rows()}
@@ -350,10 +375,11 @@ def close(step_id, answer, by=None):
         fail("step gate:\n" + "\n".join(errors))
     kind, name = parse_check(step["Verification"])
     if kind == "MANUAL":
-        passed = ask(f"Manual check {name} of step {step_id}: did it pass?", answer)
-        problems.record("manual passed" if passed else "manual failed", step_id)
+        passed, source = manual_answer([problems], name, f"Manual check {name} of step {step_id}: did it pass?", answer)
+        problems.record("manual passed" if passed else "manual failed", step_id, name, git("rev-parse", "--short=12", "HEAD"))
         problems.save()
-        test.append_evidence(plan, step_id, name, "MANUAL", 0 if passed else 1, manual_source(by, passed))
+        text = manual_source(by, passed) if source == "answer" else f"{source} holds, no product file changed since"
+        test.append_evidence(plan, step_id, name, "MANUAL", 0 if passed else 1, text)
         if not passed:
             errors.append(f"the manual check {name} failed")
     elif kind == "COMMAND":
@@ -406,15 +432,16 @@ def unblock(step_id, answer):
     """Takes the decision of the user on the open Important problems of a blocked step, or of a step in progress
     after its last review round, so the step goes on without a revert."""
     plan, milestone, problems, row = context(step_id)
-    accepted = row["State"] == "in progress" and open_important(step_rows(problems, step_id), rounds(problems, step_id))
-    if row["State"] != "blocked" and not accepted:
+    held = open_important(step_rows(problems, step_id), rounds(problems, step_id))
+    if row["State"] != "blocked" and not (row["State"] == "in progress" and held):
         fail(f"step {step_id} has state {row['State']} and no open Important problem")
-    if not answer.strip() or "|" in answer or "\n" in answer:
-        fail("the user answer must be one line without '|'")
+    reason = user_reason(answer, f"Open problems of step {step_id}: {' '.join(held) or 'see the step blocked record'}. What does the user decide?")
+    changed = []
     for item in step_rows(problems, step_id):
         if not settled(item):
-            item["Answer"] = f"user {answer.strip()}"
-    problems.record("step unblocked", step_id)
+            changed.append(f"{item['ID']}={item['Answer'] or 'open'}")
+            item["Answer"] = f"user {reason}"
+    problems.record("step unblocked", step_id, "old:", *changed, "new:", f"user {reason}")
     problems.save()
     row["State"] = "in progress"
     plan["meta"]["status"] = "in progress"
@@ -448,6 +475,92 @@ def add_fix(problem_id, step_id):
     print(f"fix step {fix_id} added, run step-run")
 
 
+def problem_context():
+    """The plan of the problem commands: the plan of this worktree, or the plan in close in the main repository."""
+    plan = require_plan()
+    require_branch()
+    return plan, Problems(plan)
+
+
+def find_problem(problems, problem_id):
+    rows = [row for row in problems.rows if row["ID"] == problem_id]
+    if not rows:
+        fail(f"{problems.rel}: the problem {problem_id} does not exist")
+    return rows[0]
+
+
+def save_problems(plan, problems, problem_id, subject):
+    """Writes the problems file and commits it. A row that fails the writing rules leaves the file as it was."""
+    before = read(problems.path)
+    problems.save()
+    number = next(index for index, line in enumerate(problems.text.split("\n"), 1) if line.startswith(f"| {problem_id} |"))
+    errors = [error for error in docs_lint.lint([problems.rel])[0] if re.match(rf"^.+:{number}: ", error)]
+    if errors:
+        write(problems.path, before)
+        fail("the writing rules of docs/DOCS_CONVENTIONS.md:\n" + "\n".join(errors))
+    commit(f"{subject}: {plan['id']} {problem_id}", [problems.path], verify=False)
+
+
+def one_line(value, name):
+    if "|" in value or "\n" in value:
+        fail(f"{name} must be one line without '|'")
+    return " ".join(value.split())
+
+
+def add_problem(cells):
+    """Appends one problem row that a review posted. The tool gives it the next id."""
+    plan, problems = problem_context()
+    names = ["Step", "Round", "Severity", "Rule", "Topic", "Location", "Trigger", "Class", "Fix"]
+    row = {name: one_line(value, name) for name, value in zip(names, cells)}
+    row.update({"ID": next_id("N", [item["ID"] for item in problems.rows]), "Answer": "", "Check": ""})
+    errors = row_errors(row, problems.header)
+    if row["Step"] != "plan" and row["Step"] not in [step["Step"] for step in all_steps(plan)]:
+        errors.append(f"D65: {row['Step']} is no step of {plan['id']}")
+    if words(row["Fix"]) > 20:
+        errors.append("docs/REVIEW.md, Problem format: Fix is max 20 words")
+    if errors:
+        fail("the problem is not added:\n" + "\n".join(errors))
+    problems.rows.append(row)
+    save_problems(plan, problems, row["ID"], "Problem added")
+    print(f"problem {row['ID']} added")
+
+
+def answer_problem(problem_id, answer):
+    """Writes the answer of the implementor into one problem. A state tool writes each other answer."""
+    plan, problems = problem_context()
+    row = find_problem(problems, problem_id)
+    answer = one_line(answer, "the answer")
+    if row["Answer"].startswith(TOOL_ANSWERS):
+        fail(f"D71: the answer '{row['Answer']}' of {problem_id} comes from a tool and stays. A fix step answers its own problems")
+    if answer.startswith(TOOL_ANSWERS):
+        fail("D71: a tool writes the answers reverted, user and fix. A user answer needs the user key: run the unblock command")
+    if not AGENT_ANSWER.match(answer):
+        fail("D66: the answer must be 'fixed <commit>', 'closed <wrong|intentional|prevented> <reason>' or 'bug <id>'")
+    if (row["Severity"] == "Pre-existing") != answer.startswith("bug "):
+        fail("D70: a Pre-existing problem takes the answer 'bug <id>', and only such a problem takes it")
+    if answer.startswith("fixed ") and not git_ok("cat-file", "-e", answer.split()[1] + "^{commit}"):
+        fail(f"D66: {answer.split()[1]} is no commit")
+    row["Answer"] = answer
+    save_problems(plan, problems, problem_id, "Problem answered")
+    print(f"problem {problem_id} answered")
+
+
+def check_problem(problem_id, value):
+    """Writes the result of a later review round into the Check cell of one problem."""
+    plan, problems = problem_context()
+    row = find_problem(problems, problem_id)
+    value = one_line(value, "the check")
+    if not CHECK_CELL.match(value):
+        fail("D69: the check must be 'confirmed', 're-raised <trigger>' or 'carried <id>'")
+    if value.startswith("carried "):
+        carrier = find_problem(problems, value.split()[1])
+        if carrier["ID"] <= problem_id or carrier["Step"] != row["Step"]:
+            fail(f"D69: the carrier {carrier['ID']} must be a later row of the same step")
+    row["Check"] = value
+    save_problems(plan, problems, problem_id, "Problem checked")
+    print(f"problem {problem_id} checked")
+
+
 def manual_source(by, passed):
     if by == "agent":
         return f"checked by the agent on request of the user: {'passed' if passed else 'failed'}"
@@ -464,28 +577,36 @@ def run(args):
         {"start": start, "review": review, "revert": revert, "block": block}[command](rest[0])
     elif command == "close" and len(rest) == 1:
         close(rest[0], answer, by)
-    elif command == "unblock" and len(rest) == 2:
-        unblock(*rest)
+    elif command == "unblock" and len(rest) == 1:
+        unblock(rest[0], answer)
     elif command == "add-fix" and len(rest) == 2:
         add_fix(*rest)
     elif command == "set-text" and len(rest) == 2:
-        set_text(*rest)
+        set_text(*rest, answer)
     elif command == "insert-refactor" and len(rest) == 3:
         insert_refactor(*rest, answer)
     elif command == "set-dependencies" and len(rest) == 2:
-        set_dependencies(*rest)
+        set_dependencies(*rest, answer)
     elif command == "add-check" and len(rest) == 1:
         add_check(rest[0], answer)
+    elif command == "add-problem" and len(rest) == 9:
+        add_problem(rest)
+    elif command == "answer-problem" and len(rest) == 2:
+        answer_problem(*rest)
+    elif command == "check-problem" and len(rest) == 2:
+        check_problem(*rest)
     else:
         fail(
             "usage: python -m tools.step_close <start|review|revert|block> <step>"
             " | close <step> [--answer yes|no] [--by agent]"
-            ' | unblock <step> "<user answer>"'
+            ' | unblock <step> --answer "<answer of the user>"'
             " | add-fix <problem> <step>"
-            ' | set-text <step> "<text>"'
-            ' | set-dependencies <step> "<ids or none>"'
+            ' | set-text <step> "<text>" --answer yes|no'
+            ' | set-dependencies <step> "<ids or none>" [--answer yes|no]'
             ' | insert-refactor <feature> "<text>" "<verification>" [--answer yes|no]'
             ' | add-check "<check>" [--answer yes|no]'
+            ' | add-problem <step|plan> <round> <severity> <rule> "<topic>" "<location>" "<trigger>" "<class>" "<fix>"'
+            ' | answer-problem <problem> "<answer>" | check-problem <problem> "<check>"'
         )
 
 

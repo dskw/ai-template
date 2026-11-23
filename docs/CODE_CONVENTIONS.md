@@ -17,6 +17,7 @@ Each rule has an id. A review problem names the id.
 | C20 | Prefer the word type for a category in names, comments and rule texts. Use the word kind only when type already has a meaning in the same context. |
 | C21 | Well designed: the wiki page of each module names in one sentence the decision that the module hides. The code holds no such sentence and no reference to a document. A change of that decision that the design or the open milestone names touches one module. A public function does not only forward its arguments to one other function. The dependencies between modules hold no cycle. |
 | C22 | Extensible: a new instance of a type follows the row `DEP-01` of `docs/DEPENDENCIES.md`. An extension point has at least 2 users in the code or in the open milestone. Examples are a generic parameter, an interface, a registry or a switch. |
+| C24 | A fix removes the cause of a defect. A longer limit, a retry, a tolerance or a delay is not a fix. |
 | C23 | Maintainable: the step text names the modules that the change touches. The reviewer names each touched module that the step text does not explain. Each module has a test that calls it through its public interface only. One fact lives in one definition, and each user reuses it under C03. |
 
 ## Encoding rules

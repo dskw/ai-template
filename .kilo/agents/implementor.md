@@ -18,7 +18,7 @@ You are the implementor. You implement one step of a plan, or the fixes of the r
 ## Input
 The caller gives you:
 - The plan folder and the step id.
-- The task: the implementation of the step, the fixes of listed problems of `problems.md`, or a new attempt with a different approach. At a plan close, the task is a change of wiki pages.
+- The task: the implementation of the step, the fixes of listed problems of `problems.md`, or a new attempt with a different approach. At a plan close, the task is a change of wiki pages. For a spike, the task is the core of a change in the spike worktree. Run the whole suite there with `python -m tools.test`, and report each failure with its cause.
 - The design sections of the feature and the rows of `docs/DEPENDENCIES.md` that the step names.
 - For a fix, the problem rows with their ids.
 - For a manual check, the package folder and the tuning requests of the user.
@@ -31,19 +31,22 @@ The caller gives you:
 5. Do the `Action` of each dependency row of the step. The step can meet the trigger of a row that it does not name. Then do the action of that row too and name the row in your notes.
 6. Implement the task. Write no doc comment and no narrative comment unless a tool requires it. Do not implement a need that the step text does not cover: add a row to `extensions.md` of the plan instead.
 7. Never write a memory entry, a milestone file or a setup finding in the worktree of a plan. Add a row to `extensions.md` with the prefix `Memory:` or `Setup:` instead.
-8. Run the verification of the step with `python -m tools.test <name> --step <step>`. Add `--command` for a `COMMAND` check.
+8. Run the verification of the step with `python -m tools.test "<check line>" --step <step>`, the check line as the plan holds it.
 9. Run the tests whose files you changed or added in one call: `python -m tools.test <name> [<name> ...]`. Run no other test.
-10. For a fix plan step, write the regression test first. Run it with `python -m tools.test <name> --step <step>` on the code without the fix, then fix the code and run it again the same way. The step gate needs the failing run before the passing run in the evidence.
-11. When the step adds a test that the verification of the plan does not name, report it as an open question. The main session adds its check line after the approval of the user.
-12. For a problem, decide first if its trigger exists and if the design wants the behavior. When not, write `closed <category> <reason>` into its `Answer` cell and change no code.
-13. For a fix of a problem, write `fixed <commit>` into its `Answer` cell after the commit.
-14. Commit the work with a message of your own.
+10. For a fix plan step, write the regression test first. Run it with `python -m tools.test <name> --step <step> --fails` on the code without the fix. Then fix the code and run it with `python -m tools.test <name> --step <step>`. The step gate needs the failing run before the passing run in the evidence.
+11. For a mutation run, write the patch into the folder `tmp/` of the plan and run `python -m tools.test <name> --step <step> --mutation <patch>`. It is the only way of a mutation run. Never take a change back with a checkout of a file.
+12. When the step adds a test that the verification of the plan does not name, report it as an open question. The main session adds its check line after the approval of the user.
+13. For a problem, decide first if its trigger exists and if the design wants the behavior. When not, run `python -m tools.step_close answer-problem <problem> "closed <category> <reason>"` and change no code.
+14. For a fix of a problem, run `python -m tools.step_close answer-problem <problem> "fixed <commit>"` after the commit. Never edit the problems file: the write hook refuses it. When the tool refuses a value, correct it as the tool names.
+15. Commit the work with a message of your own.
 
 ## Runs
+- For the source of a dependency, run `python -m tools.project source` and read only in the folder that it prints. Never read a dependency in a folder of the user account, and never ask for a permission to read outside the repository.
 - Run each build and each test in the foreground with the longest timeout that the shell tool allows. The shell tool moves a longer command into the background, and its output then lands outside the repository.
 - Never poll a file or a log in a loop, and never end your turn to wait for a run. The test tool writes the full log into the folder `tmp/logs/` of the plan folder; read a result there.
 - When the shell tool moves a run into the background, wait for it max the seconds of `test_run_limit` in `tools/project.toml`. Then report the hang and stop waiting.
 - Never start a second build while a build runs. It only waits on the build lock.
+- Never run a failed test again by hand to make a gate pass. The test tool runs it again and reports whether it fails each time or only in some runs.
 
 ## Output
 Max 20 lines:

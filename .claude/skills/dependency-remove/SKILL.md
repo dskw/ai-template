@@ -12,7 +12,7 @@ The format and the rules of the file are in `docs/DOCS_CONVENTIONS.md`, section 
 3. Start the `reviewer` agent with the scope document review. Give it the row of the dependency and the diff of the merge commit.
 4. The reviewer agrees when the trigger cannot occur any more, or when the action happens without work of a step. It names the code that shows this.
 5. After an agreement, run `python -m tools.dependency remove <id> "<reason>"`. The reason has max 12 words.
-6. After a refusal, keep the row. Write the reason of the reviewer as a `Nit` problem of the plan into `problems.md`, with the answer `closed intentional` and the reason.
+6. After a refusal, keep the row. Add the reason of the reviewer as a `Nit` problem of the plan with `python -m tools.step_close add-problem`. Then write the answer `closed intentional <reason>` with `python -m tools.step_close answer-problem`.
 
 ## Rules
 - A changed dependency is a removal and an add: run `dependency-add` for the new row.

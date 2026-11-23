@@ -31,17 +31,20 @@ Each rule has an id. A review problem names the id.
 | T15 | A regression test checks the result that the user sees, under the rules T02 to T04. |
 | T16 | A regression test stays in the suite after a tool removes the bug row. |
 | T17 | A bug that no test can show has a manual check as acceptance. |
+| T27 | A fix of a failing test removes the cause of the failure. A longer wait, a retry, a wider bound or a delay is not a fix. |
 
 ## Test runs
 `python -m tools.test` runs the test runner of the project. The commands of the runner are in `tools/project.toml`.
 
 | ID | Rule |
 |---|---|
-| T18 | Run tests with `python -m tools.test <name> [<name> ...]`, in one call for all names. Run the suite with `python -m tools.test`. |
+| T18 | Run tests with `python -m tools.test <name> [<name> ...]`, in one call for all names. Run a check line of the plan as it stands, for example `python -m tools.test "COMMAND <name> passes"`. Run the suite with `python -m tools.test`. |
+| T28 | A test name matches one whole part of the name of a test. `--contains` runs each test whose name contains it. The output names each test that ran. |
+| T29 | The tool runs a failed test three more times alone. `fails each time` names a steady defect, `fails in n of 4 runs` a test without a fixed result. Both fail the gate. A run with more than five failed tests runs none again, because so many failures share a cause. Never run a failed test again by hand to make a gate pass. |
 | T19 | Run the test of a step with `--step <step>`. The tool writes the evidence file. |
-| T20 | In a fix step, run the regression test with `--step` before the fix and again after the fix. |
+| T20 | In a fix step, run the regression test with `--step` and `--fails` before the fix, then with `--step` after the fix. A run with `--fails` counts only when the build passes and the test fails. |
 | T21 | A step runs its verification and the tests whose files it changes or adds. Nothing else. |
-| T25 | A plan close runs the checks of its `Verification` section and the tests that the plan changed or added. Only the milestone close runs the whole suite. |
+| T25 | A plan close runs the checks of its `Verification` section and the tests that the plan changed or added. The `COMMAND` checks run before the plan review too. Only the milestone close runs the whole suite. |
 | T22 | A test covers the changed code when it calls, spawns or reads a changed module, type or function. The `Verification` section of a plan lists these tests, so the plan close runs them. |
 | T26 | A test takes no fixed resource of the machine, for example a fixed port or a fixed file outside its own folder. It passes while other tests run. |
 | T31 | The configuration of the test runner ends a test after the per-test timeout. `python -m tools.test` ends a run after `test_run_limit` seconds and reports the hang. |

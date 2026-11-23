@@ -13,6 +13,7 @@ from tools._lib import (
     Problems,
     active_plan,
     active_plans,
+    add_milestone_record,
     all_steps,
     branch,
     commit,
@@ -38,6 +39,8 @@ from tools._lib import (
     run as shell,
     save_milestone,
     table_lines,
+    take_option,
+    user_reason,
     words,
     write,
 )
@@ -168,6 +171,9 @@ def check_errors():
             if row["State"] == "complete" and not (row["Evidence"] and (plan["dir"] / row["Evidence"]).is_file()):
                 errors.append(f"{plan['rel']}/progress.md: the complete step {row['Step']} has no evidence file")
     if errors:
+        return errors
+    # the tables of the milestone belong to the main repository; a worktree of a plan can not rewrite a stale one
+    if in_worktree():
         return errors
     for milestone in all_milestones:
         if milestone["meta"]["status"] == "draft":
@@ -348,16 +354,21 @@ def out_of_scope(action, item):
 
 
 def drop_feature(feature_id, reason):
+    """Drops a feature on a decision of the user. The row keeps its acceptance; the record holds the old state and
+    the reason."""
     milestone = require_milestone()
     check_text(reason, 12, "the reason")
     for row in milestone["features"]:
         if row["ID"] == feature_id:
             if row["State"] not in ("open", "in progress"):
                 fail(f"{feature_id} has state {row['State']}")
-            row["State"], row["Acceptance"] = "dropped", reason
+            old = row["State"]
+            row["State"] = "dropped"
+            add_milestone_record(milestone, "feature dropped", feature_id, "old:", old, "new:", "dropped", reason)
             save_milestone(milestone)
             regenerate()
-            commit(f"Feature dropped: {milestone['id']} {feature_id} {reason}", [milestone["path"], PROGRESS], verify=False)
+            message = f"Feature dropped: {milestone['id']} {feature_id} {reason}\n\nState: {old} -> dropped"
+            commit(message, [milestone["path"], PROGRESS], verify=False)
             print(f"dropped {milestone['id']} {feature_id}")
             return
     fail(f"{feature_id} is not in the feature table of {milestone['id']}")
@@ -381,6 +392,12 @@ def bug_errors(milestone, row, all_milestones):
         errors.append(f"{row['ID']}: the source must be 'user' or a plan id with a problem id")
     if not parse_check(row["Acceptance"]):
         errors.append(f"{row['ID']}: the acceptance must be 'TEST <name> passes', 'COMMAND <name> passes' or 'MANUAL <name>'")
+    cause = row.get("Cause", "")
+    match = re.fullmatch(r"(user|R\d{3}) (\S.*)", cause)
+    if cause and not (match and words(match.group(2)) <= 20):
+        errors.append(f"{row['ID']}: the cause must be empty, or 'user <cause>' or '<research id> <cause>' with max 20 words")
+    elif match and match.group(1) != "user" and not list((MILESTONES.parent / "research").glob(f"{match.group(1)}-*.md")):
+        errors.append(f"{row['ID']}: the research file {match.group(1)} of the cause does not exist")
     return errors
 
 
@@ -395,9 +412,9 @@ def next_bug_id(milestone):
     return next_id("B", used)
 
 
-def add_bug(text, feature, source, acceptance):
+def add_bug(text, feature, source, acceptance, cause=""):
     milestone = require_milestone()
-    row = {"ID": next_bug_id(milestone), "Bug": text, "Feature": feature, "Source": source, "Acceptance": acceptance}
+    row = {"ID": next_bug_id(milestone), "Bug": text, "Feature": feature, "Source": source, "Acceptance": acceptance, "Cause": " ".join(cause.split())}
     if any("|" in value for value in row.values()):
         fail("a cell must not hold '|'")
     errors = bug_errors(milestone, row, milestones())
@@ -422,7 +439,9 @@ def remove_bug(milestone, bug_id):
 def drop_bug(bug_id, reason):
     milestone = require_milestone()
     check_text(reason, 12, "the reason")
-    remove_bug(milestone, bug_id)
+    row = remove_bug(milestone, bug_id)
+    add_milestone_record(milestone, "bug dropped", bug_id, "old:", "open", "new:", "dropped", reason)
+    save_milestone(milestone)
     paths = [milestone["path"], PROGRESS]
     # the plan in close holds its folder in this work tree; a plan in a worktree records the drop at its next sync
     plan = active_plan()
@@ -432,11 +451,12 @@ def drop_bug(bug_id, reason):
         problems.save()
         paths.append(problems.path)
     regenerate()
-    commit(f"Bug dropped: {milestone['id']} {bug_id} {reason}", paths)
+    commit(f"Bug dropped: {milestone['id']} {bug_id} {reason}\n\nOld row: {row['Bug']}", paths)
     print(f"dropped {milestone['id']} {bug_id}")
 
 
 def run(args):
+    answer = take_option(args, "--answer")
     command = args[0] if args else ""
     rest = args[1:]
     if command == "":
@@ -454,28 +474,28 @@ def run(args):
         status()
     elif command == "add-feature" and len(rest) == 4:
         add_feature(*rest)
-    elif command == "drop-feature" and len(rest) == 2:
-        drop_feature(*rest)
+    elif command == "drop-feature" and len(rest) == 1:
+        drop_feature(rest[0], user_reason(answer, f"Drop {rest[0]}: what is the reason of the user?"))
     elif command == "set-goal" and len(rest) == 1:
         set_goal(rest[0])
     elif command == "out-of-scope" and len(rest) == 2 and rest[0] in ("add", "remove"):
         out_of_scope(*rest)
-    elif command == "add-bug" and len(rest) == 4:
+    elif command == "add-bug" and len(rest) in (4, 5):
         add_bug(*rest)
     elif command == "fix-bug" and len(rest) == 1:
         from tools import plan_close
 
         plan_close.fix_one(rest[0])
-    elif command == "drop-bug" and len(rest) == 2:
-        drop_bug(*rest)
+    elif command == "drop-bug" and len(rest) == 1:
+        drop_bug(rest[0], user_reason(answer, f"Drop {rest[0]}: what is the reason of the user?"))
     else:
         fail(
             "usage: python -m tools.progress [check | status"
             ' | add-feature <milestone> <new|update|refactor> "<text>" "<acceptance>"'
-            ' | drop-feature <feature> "<reason>"'
+            ' | drop-feature <feature> --answer "<reason of the user>"'
             ' | set-goal "<text>" | out-of-scope <add|remove> "<item>"'
-            ' | add-bug "<text>" "<feature or empty>" "<source>" "<acceptance>"'
-            ' | fix-bug <bug> | drop-bug <bug> "<reason>"]'
+            ' | add-bug "<text>" "<feature or empty>" "<source>" "<acceptance>" ["<cause>"]'
+            ' | fix-bug <bug> | drop-bug <bug> --answer "<reason of the user>"]'
         )
 
 

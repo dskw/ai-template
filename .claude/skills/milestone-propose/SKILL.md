@@ -8,7 +8,7 @@ The rules of a milestone are in `docs/DOCS_CONVENTIONS.md`, section Milestone fi
 
 ## Procedure
 1. Run `python -m tools.progress status`. When a milestone is open, propose a later milestone only on user request. It becomes a draft.
-2. Read the archived milestones, the open milestone and each draft milestone. Note the done features, the dropped features with their reasons, the out of scope lists and the features of each draft.
+2. Read the archived milestones, the open milestone and each draft milestone. Note the done features, the dropped features with the reasons of their `feature dropped` records, the out of scope lists and the features of each draft.
 3. Read the design documents and the ideas file.
 4. List the mechanics that the code has now, from the done features, not from the design alone.
 5. Write two or three proposals. Each proposal has a goal of one or two sentences, three to six features and the ideas that it takes in by id. Each feature builds on a done feature or mechanic, or on a feature of the open milestone or of a draft, and names it. No proposal repeats a feature of a draft.

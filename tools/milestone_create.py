@@ -40,8 +40,8 @@ closed:
 |---|---|---|---|---|---|
 
 ## Bugs
-| ID | Bug | Feature | Source | Acceptance |
-|---|---|---|---|---|
+| ID | Bug | Feature | Source | Acceptance | Cause |
+|---|---|---|---|---|---|
 
 ## Out of scope
 """

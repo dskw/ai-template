@@ -1,8 +1,9 @@
-"""Keeps the research files: starts a file with the next id, checks its common frame and commits it."""
+"""Keeps the research files: starts a file with the next id, checks its common frame and commits it. A spike of a
+research gets its own branch and worktree, which the end of the spike deletes."""
 
 import re
 
-from tools._lib import DOCS, commit, fail, git, main, read, rel, today, write
+from tools._lib import DOCS, commit, fail, git, git_ok, main, main_root, read, rel, run as shell, today, write
 
 RESEARCH = DOCS / "research"
 RESEARCH_FILE = re.compile(r"^(R\d{3})-([a-z0-9]+(?:-[a-z0-9]+)*)\.md$")
@@ -81,15 +82,49 @@ def save(item):
     print(f"committed {rel(path)}")
 
 
+def spike_place(item):
+    if not re.fullmatch(r"R\d{3}", item):
+        fail(f"{item} is no research id")
+    return f"spike/{item}", main_root() / ".worktrees" / f"spike-{item}"
+
+
+def spike(item):
+    """Creates the branch and the worktree of a spike from HEAD. No commit of the spike reaches the milestone branch."""
+    find(item)
+    name, path = spike_place(item)
+    if not git_ok("rev-parse", "--verify", "--quiet", f"refs/heads/{name}"):
+        git("branch", name, "HEAD")
+    if not path.exists():
+        git("worktree", "add", str(path), name)
+    print(f"spike worktree: {path}")
+
+
+def spike_end(item):
+    """Deletes the worktree and the branch of a spike."""
+    name, path = spike_place(item)
+    if path.exists():
+        code, output = shell(["git", "worktree", "remove", "--force", str(path)])
+        if code != 0:
+            fail(f"the spike worktree {path} is in use, close the programs there:\n{output}")
+    shell(["git", "worktree", "prune"])
+    if git_ok("rev-parse", "--verify", "--quiet", f"refs/heads/{name}"):
+        git("branch", "-D", name)
+    print(f"spike {item} removed")
+
+
 def run(args):
     if len(args) == 2 and args[0] == "start":
         start(args[1])
+    elif len(args) == 2 and args[0] == "spike":
+        spike(args[1])
+    elif len(args) == 2 and args[0] == "spike-end":
+        spike_end(args[1])
     elif args[:1] == ["check"]:
         check(args[1:])
     elif len(args) == 2 and args[0] == "commit":
         save(args[1])
     else:
-        fail("usage: python -m tools.research start <name> | check [<id> ...] | commit <id>")
+        fail("usage: python -m tools.research start <name> | check [<id> ...] | commit <id> | spike <id> | spike-end <id>")
 
 
 if __name__ == "__main__":

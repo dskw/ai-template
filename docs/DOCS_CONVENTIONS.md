@@ -145,13 +145,16 @@ The user can draw a route on the map, save it and load it again.
 | F03 | Check the route file by hand | update | MANUAL route_file_check | | open |
 
 ## Bugs
-| ID | Bug | Feature | Source | Acceptance |
-|---|---|---|---|---|
-| B01 | Save fails for routes with one waypoint | F02 | user | TEST bug_route_save_single passes |
-| B02 | Deleted waypoint still drawn until reload | M002-F04 | M003-P002 N07 | TEST bug_route_delete_redraw passes |
+| ID | Bug | Feature | Source | Acceptance | Cause |
+|---|---|---|---|---|---|
+| B01 | Save fails for routes with one waypoint | F02 | user | TEST bug_route_save_single passes | user The length check divides by the count of segments |
+| B02 | Deleted waypoint still drawn until reload | M002-F04 | M003-P002 N07 | TEST bug_route_delete_redraw passes | |
 
 ## Out of scope
 - Route optimization
+
+## Records
+- feature dropped F04 old: open new: dropped The user wants no export 2026-11-12
 ```
 
 | ID | Rule |
@@ -163,12 +166,16 @@ The user can draw a route on the map, save it and load it again.
 | D267 | A feature that another feature needs stands above it in the table. The text of the dependent feature names its id. |
 | D26 | An acceptance is one check: `TEST <name> passes`, `COMMAND <name> passes` or `MANUAL <name>`. |
 | D27 | The user runs a `MANUAL` check, or delegates it to the agent for one step or one plan. A tool records the answer and its source. |
+| D304 | The record of a manual check names the check and the commit that the user checked. A later gate with the same check accepts a pass while no product file changed since that commit. |
+| D305 | A product file is each file outside `docs/` and the setup, except a Markdown file. After a change of one, the gate asks again and names the changed files. |
+| D306 | Never pass an earlier answer of the user on to a later gate. The tool decides whether an earlier pass still holds. |
 | D187 | A manual check package of a step or a plan goes into `docs/plans/<plan>/tmp/manual-check/`, one of the milestone close into `docs/milestones/tmp/manual-check/`. A close fails while a package is in use. |
 | D28 | `python -m tools.progress` writes `Plans` and `State`. `State` is `open`, `in progress`, `done`, `dropped` or `migrated`. Each state other than `open` stands in bold. |
 | D29 | A feature is `done` when an archived plan lists it in `done` and no active plan references it. |
 | D30 | After the document review, only the user adds, changes or deletes a feature. The user changes the `Goal` and the `Out of scope` list of the open milestone through `python -m tools.progress set-goal` and `out-of-scope`. |
 | D31 | A need found during a plan goes to `extensions.md`. It becomes a feature only with user approval. |
-| D32 | Only the user drops a feature. Ask with the reason. The dropped row holds the reason in `Acceptance`. |
+| D32 | Only the user drops a feature. Ask with the reason. The dropped row keeps its acceptance. Its record `feature dropped` holds the old state and the reason. |
+| D285 | The section `Records` of a milestone file is optional. It holds the records `feature dropped`, `bug dropped` and `milestone reviewed`. Only a tool writes it. |
 | D33 | `Out of scope` lists what the milestone does not deliver. Do not implement an item of this list. |
 | D34 | A milestone with zero features and one or more bugs is valid. |
 
@@ -207,7 +214,8 @@ flowchart TD
 | ID | Rule |
 |---|---|
 | D35 | The `Bugs` table lists open bugs only. A tool removes a fixed or dropped bug. |
-| D36 | A bug text has max 12 words. It names what the user sees. |
+| D36 | A bug text has max 12 words. It names what the user sees, never a fix. |
+| D290 | `Cause` is empty, `user <cause>` or `<research id> <cause>`, with max 20 words. The prefix names the source of the cause. |
 | D37 | `Feature` is empty, a feature id of the milestone, or `M001-F03` for a feature of a different milestone. |
 | D38 | `Source` is `user`, or the plan id and the problem id of the review. |
 | D39 | A bug without acceptance is not added. Ask the user when you cannot derive it. |
@@ -216,7 +224,7 @@ flowchart TD
 | D42 | A bug reported during a plan does not change that plan. It waits for a fix plan. |
 | D43 | The user chooses the bugs of a fix plan. In the bugfix phase the plan takes all open bugs. |
 | D44 | Tell the user the bug list before you write the plan of a bugfix phase. |
-| D45 | Only the user drops a bug. The reason has max 12 words. |
+| D45 | Only the user drops a bug. The reason has max 12 words. It is the value of `--answer`. |
 | D46 | A problem in a `done` feature is a bug. A feature plan never references a `done` feature. |
 
 ## PROGRESS.md
@@ -272,7 +280,7 @@ closed:
 | D261 | A refactor step adds no instance, so the row `DEP-01` does not apply to it. |
 | D202 | `Dependencies` holds the id of each row of `docs/DEPENDENCIES.md` whose trigger the step meets, or `none`. The tools refuse an empty cell. |
 | D203 | The `Verification` section of the plan lists the validation of each dependency that a step names, when it is a check. |
-| D269 | `python -m tools.step_close set-dependencies` writes the `Dependencies` cell of an open step or a step in progress. It adds the validation of each named row that is a check to the `Verification` section. |
+| D269 | `python -m tools.step_close set-dependencies` writes the `Dependencies` cell of a step of the running plan, also of a complete step. It adds the validation of each named row that is a check to the `Verification` section. A cell that drops a named row needs `--answer`. |
 | D50 | `status` is `draft`, `in progress`, `blocked` or `closed`. |
 | D51 | A plan references ids of its own milestone only. |
 | D52 | `python -m tools.plan_close` writes `done`: the ids whose acceptance check passed at plan close. |
@@ -281,11 +289,15 @@ closed:
 | D54 | A step text has max 20 words. The verification is one check in the form of an acceptance. |
 | D55 | The verification passes after that step alone. Cut a step as one increment that the user can see. |
 | D56 | In a fix plan each bug has one step. The verification is the acceptance of the bug. |
+| D291 | A fix plan with a bug without a cause starts with a diagnosis. It is a research step with the question `What causes these bugs, and which bugs share a cause?`. |
+| D292 | The diagnosis names per bug the cause and the section of the design or of a research that the fix follows. The session then writes the fix steps with `set-text` and the user key. |
+| D293 | Bugs with one cause share one fix. The first step of the group fixes the cause. Each further step adds its regression test, with a mutation run as its failing run. |
+| D294 | `plan-create` searches the ideas file and the research files for the topics of the bugs of a fix plan. The step of a bug names each match. |
 | D57 | Only `python -m tools.step_close add-fix` writes the `Fix steps` table. |
 | D58 | When a feature has problems with the answer `user replan` in an archived plan, write them into the step texts. |
 | D243 | A step with the verification `COMMAND research_check passes` is a research step. Its text is the question. It is the first step of its feature. |
 | D244 | A research step adds a research file and changes no source file and no test file. The step gate refuses such a change. |
-| D245 | After a research step, `python -m tools.step_close set-text` writes the new text of an open step, only after the approval of the user. |
+| D245 | `python -m tools.step_close set-text` writes the new text of a step that is not complete, after the approval of the user. Its record keeps the old and the new text. |
 
 ```mermaid
 stateDiagram-v2
@@ -358,13 +370,14 @@ stateDiagram-v2
 
 | ID | Rule |
 |---|---|
-| D65 | The review skill writes the problem rows. `Step` is a step id, or `plan` for a plan review problem. |
-| D66 | The implementor writes `Answer`: `fixed <commit>` or `closed <category> <reason>`. |
+| D65 | The review skill adds each problem row with `python -m tools.step_close add-problem`. `Step` is a step id, or `plan` for a plan review problem. |
+| D284 | Only a tool writes the problems file. The problem commands validate each value, name the broken rule and commit at once. The add command appends a row, and the answer and check commands each change one cell. No command changes or drops a posted row. |
+| D66 | The implementor writes `Answer` with `python -m tools.step_close answer-problem`: `fixed <commit>` or `closed <category> <reason>`. A problem with the answer `fix <step>` takes no further answer. |
 | D67 | The categories are `wrong`, `intentional` and `prevented`. |
 | D68 | `wrong`: the trigger does not exist. `intentional`: name the design or the convention. `prevented`: name the place that prevents the trigger. |
-| D69 | In a later round the review skill writes `Check` for each problem of the round before: `confirmed` or `re-raised <trigger>`. A re-raised problem that a new row of the same step carries gets `carried <id>`. |
+| D69 | In a later round the review skill writes `Check` with `python -m tools.step_close check-problem` for each problem of the round before: `confirmed` or `re-raised <trigger>`. A re-raised problem that a new row of the same step carries gets `carried <id>`. |
 | D280 | A gate treats a problem with `carried <id>` as closed when the row with that id has an answer and the check `confirmed`. |
-| D70 | The answer of a `Pre-existing` problem is `bug <id>`. The plan close runs `bug-report` for it in the main repository and writes the answer. |
+| D70 | The answer of a `Pre-existing` problem is `bug <id>`. The plan close runs `bug-report` for it in the main repository and writes the answer with `answer-problem`. |
 | D205 | `Topic` holds one or two words for the subject of the failure. A problem with the subject of an earlier problem takes its topic. |
 | D206 | The implementor decides before each fix if the trigger exists and if the design wants the behavior. It closes the problem with its category when not. |
 | D71 | A tool writes the answers `reverted`, `user <text>` and `fix <step>`. |
@@ -376,11 +389,14 @@ stateDiagram-v2
 | `step reviewed <step>` | `step_close review` |
 | `step reverted <step>` | `step_close revert` |
 | `step blocked <step> <problems>` | `step_close block` |
-| `step unblocked <step>` | `step_close unblock` |
+| `step unblocked <step> old: <answers> new: <answer>` | `step_close unblock` |
+| `text changed <step> old: <text> new: <text>` | `step_close set-text` |
+| `dependencies removed <step> old: <ids> new: <ids>` | `step_close set-dependencies` |
 | `fix added <step> <problem>` | `step_close add-fix` |
 | `approved <step or close> <hash>`, `rejected <step or close> <hash>` | `approve` |
-| `manual passed <id>`, `manual failed <id>` | `step_close close`, `plan_close check` |
-| `milestone manual passed <feature>`, `milestone manual failed <feature>` | `milestone_close check` |
+| `manual passed <id> <check> <hash>`, `manual failed <id> <check> <hash>` | `step_close close`, `plan_close check` |
+| `plan manual passed <check> <hash>`, `plan manual failed <check> <hash>` | `plan_close check` |
+| `milestone manual passed <feature> <check> <hash>`, `milestone manual failed <feature> <check> <hash>` | `milestone_close check` |
 | `bug verified <bug>` | `plan_close verify-bug` |
 | `bug verified withdrawn <bug>` | `plan_close unblock`, `progress drop-bug` |
 | `tuning done` | `plan_close tuning` |
@@ -388,7 +404,7 @@ stateDiagram-v2
 | `document reviewed` | `plan_create reviewed` |
 | `review passed <hash>` | `plan_close review-passed` |
 | `plan blocked <problems>` | `plan_close block` |
-| `plan unblocked <choice> <id>` | `plan_close unblock` |
+| `plan unblocked <choice> <id> old: <answers> new: <answer>` | `plan_close unblock` |
 
 ## Step execution
 ```mermaid
@@ -423,8 +439,8 @@ sequenceDiagram
 | D75 | Give the reviewer notes of max 10 lines on why the change has this form. |
 | D76 | Answer each problem. A step has max 3 review rounds. A further round runs only when the round before posted an `Important` problem. |
 | D77 | A later round reviews the new diff and the answers of the round before. A `Nit` of the last round needs no check. |
-| D78 | An `Important` problem that round 3 posts or re-raises is open. Revert the step and use a different approach. |
-| D79 | A step has one new attempt. After the second attempt fails, block the step and ask the user. The user can also accept the open problem of a step in progress: `step_close unblock` writes the decision, and the step goes on. |
+| D78 | An `Important` problem that round 3 posts gets one short check of its fix. An `Important` problem that round 3 or the short check re-raises is open. Revert the step and use a different approach. |
+| D79 | A step has one new attempt. After the second attempt fails, block the step and ask the user. The user can also accept the open problem of a step in progress: `step_close unblock` writes the decision of `--answer`, and the step goes on. |
 | D80 | No other step starts while a step has the state `blocked`. |
 | D81 | The agent commits during a step as often as necessary, with a message of its own. A tool commits each of its own state writes at once. |
 | D207 | A delegated agent first compares its directory with the worktree of its task, then reads the memory index. It follows each memory of the types user and feedback like the main session. |
@@ -432,7 +448,7 @@ sequenceDiagram
 | D195 | The `implementor` agent writes the code and the documents of a step in a fresh context. The main session runs the tools and reads the reports. |
 | D246 | In a research step the `researcher` agent takes the place of the implementor. The document review of the research file is the review of the step. |
 | D194 | A step revert keeps the commits outside the step: memories, setup findings, milestone files and other plans. It names each kept commit. |
-| D281 | A bug that sits in a test has a mutation run as its failing run. The mutation breaks the behavior that the test guards, and no commit holds it. |
+| D281 | A bug that sits in a test has a mutation run as its failing run. The mutation breaks the behavior that the test guards, and no commit holds it. `python -m tools.test <name> --mutation <patch> --step <step>` is the only way of a mutation run. It needs a clean work tree, applies the patch, runs the test as a run that must fail and takes the patch back. |
 | D186 | Start the step before the first write to a source or test folder. The pre-commit check rejects such a change while a plan is active and no step is in progress. |
 
 ## Plan close
@@ -466,10 +482,11 @@ flowchart TD
 | D84 | The plan review is the last change of the worktree. It follows the sync and the wiki update. A plan that changed no source or test file needs no plan review. |
 | D208 | `python -m tools.plan_close sync` merges the milestone branch into the plan branch. After a merge with a conflict the plan needs a plan review of that state. |
 | D209 | `python -m tools.plan_close merge <plan>` tags the plan branch as `closed/<plan id>` and makes the commit `Plan merged:` with a squash. One plan is in close at a time. |
+| D303 | The milestone tables and `PROGRESS.md` belong to the main repository. In a worktree, the progress check skips them. The plan merge rewrites them on the merged tree and stages them before its checks. |
 | D210 | The writes of the close after the merge change no source file and no test file. The plan gate refuses such a change. |
-| D211 | A test that fails at the plan merge goes into the task of the plan review in the worktree. The review posts it as an `Important` problem, and a fix step carries the fix. |
+| D211 | Round 1 of the plan review starts with a run of each `COMMAND` check of the `Verification` section in the worktree. A test that fails there or at the plan merge goes into the task of the plan review. The review posts it as an `Important` problem, and a fix step carries the fix. |
 | D85 | A failing acceptance check does not block the plan close. An acceptance command without a binding is a failing check. The feature stays `in progress`. |
-| D86 | The plan review has max 3 rounds, a further round only after an `Important` problem. An `Important` problem open after round 3 gets a fix step. |
+| D86 | The plan review has max 3 rounds, a further round only after an `Important` problem, and the short check of D78. An `Important` problem open after that gets a fix step. |
 | D87 | A fix step runs under the step rules. The plan review runs again after it. |
 | D88 | Each rule id gets max one fix step per plan close. After that, block the plan and ask the user. |
 | D89 | The user chooses `accept`, `drop` or `replan` for a blocked plan. |
@@ -481,7 +498,7 @@ flowchart TD
 | ID | Rule |
 |---|---|
 | D93 | The implementor owns the tuning. Run `python -m tools.plan_close tuning` in the main repository after the merge. |
-| D212 | A topic with an `Important` problem in this plan and in an earlier plan: add one row to the failure patterns of `REVIEW.md`, or propose a dependency. |
+| D212 | A topic with an `Important` problem in this plan and in an earlier plan has three answers. Add one row to the failure patterns of `REVIEW.md`, propose a dependency, or run a research on the cause. A refactor feature is a possible result of that research. |
 | D94 | A rule id closed as `wrong` or `intentional` twice and confirmed: remove the pattern from `REVIEW.md`, or add the intent to a conventions file. |
 | D95 | A rule id fixed three times: add a lint rule or a convention rule. |
 | D96 | A bug with the source `user` in a `done` feature: add one line to the failure patterns of `REVIEW.md`. |
@@ -491,6 +508,8 @@ flowchart TD
 ## Milestone close
 | ID | Rule |
 |---|---|
+| D295 | Before the acceptance checks and the final manual check, the milestone review checks the sum of the plans against the design. `python -m tools.milestone_close reviewed` records it. |
+| D296 | An `Important` problem of the milestone review becomes a bug or a refactor feature of the milestone. The review also runs on user request. |
 | D99 | `python -m tools.milestone_close check` runs each acceptance check of the feature table. |
 | D100 | `python -m tools.milestone_close` applies the gate, writes the version, archives the file, merges the branch with a squash, tags it as `milestone/<id>` and deletes it. |
 | D101 | The user can close a milestone early. Close the active plan first. |
@@ -506,9 +525,9 @@ A gate runs its checks itself. A gate failure names the missing item.
 | Gate | Tool | Conditions |
 |---|---|---|
 | Step | `step_close close` | The milestone tables hold the id of the step. A review exists. Each problem has an answer. No `Important` problem is open. An approval covers the protected paths. The verification, `tools.check` and each test file that the step changed pass. The evidence file exists. A research step added a research file and changed no source or test file. |
-| Plan merge | `plan_close merge` | The worktree is clean. The plan branch holds the tip of the milestone branch. Each step is complete. Each problem has an answer. When the plan changed product code, its newest own commit is the `Review passed:` commit. Only a sync without a conflict follows it. On the merged tree, `tools.check`, the checks of the `Verification` section and each test file that the plan changed pass. |
+| Plan merge | `plan_close merge` | The worktree is clean. The plan branch holds the tip of the milestone branch. Each step is complete. Each problem has an answer. When the plan changed product code against the milestone branch, its newest own commit is the `Review passed:` commit. Only a sync without a conflict follows it. On the merged tree, `tools.check`, the checks of the `Verification` section and each test file that the plan changed pass. |
 | Plan | `plan_close` | The work tree is clean. No source or test file changed after the `Plan merged:` commit. Each step is complete. Each problem has an answer. The tuning ran. Each extension has a decision. An approval covers the protected paths of the close. The memory lint, `tools.progress` and `tools.check` pass. |
-| Milestone | `milestone_close` | Each feature is `done` or `dropped`. The `Bugs` table is empty. Each plan is in `archive/`. Each acceptance check of a `done` feature passes. `tools.progress` and the whole suite pass. |
+| Milestone | `milestone_close` | A milestone review record exists. Each feature is `done` or `dropped`. The `Bugs` table is empty. Each plan is in `archive/`. Each acceptance check of a `done` feature passes. `tools.progress` and the whole suite pass. |
 
 | ID | Rule |
 |---|---|
@@ -523,16 +542,20 @@ A gate runs its checks itself. A gate failure names the missing item.
 | D110 | A step that changes a protected path needs `python -m tools.approve <plan> <step>` before the step gate. |
 | D111 | A plan close that changes a protected path after the merge needs `python -m tools.approve <plan> close` before the plan gate. |
 | D112 | Commit before the approval. The record holds the `HEAD` hash. A later change to a protected path invalidates it. |
-| D113 | Ask the user first. Then pass the answer with `--answer yes` or `--answer no`. Never answer for the user. A delegated manual check gets `--by agent`. |
+| D113 | Ask the user in the chat first, and wait for the answer. A request for a change is not its approval. Then pass the answer with `--answer`. Never answer for the user. A delegated manual check gets `--by agent`. |
+| D286 | A command that changes or loosens a decision of the user takes `--answer`. The permission rule on `--answer` is the user key. It stays as it is, in each permission mode. |
+| D287 | A state of a step blocks one command only: a complete step takes no new text. An `unblock` and a drop take the reason of the user as the value of `--answer`. |
+| D288 | The bash guard refuses a command that holds `--answer` and a second command, also in the main session. Only a leading `cd <folder> &&` may stand before it. |
 | D213 | Where the provider has a permission rule for it, the provider asks the user before each command that holds `--answer`. |
 | D114 | A milestone file and a plan file are editable while `status` is `draft`. `python -m tools.milestone_create commit <id>` makes each commit of a milestone draft. |
 | D115 | After the creation commit, each write to a milestone file, `plan.md`, `progress.md` and `PROGRESS.md` goes through a tool. |
-| D214 | A tool commits its write to such a file, to an evidence file, to the ideas file and to the dependencies file at once. The commit check refuses each other commit that holds one. |
+| D214 | A tool commits its write at once: to such a file, an evidence file, the problems file, the ideas file and the dependencies file. The commit check refuses each other commit that holds one. A tool that refuses a work tree names each changed file and the tool that writes it. |
 | D116 | Never delete, rename or move a milestone file, a plan folder or an archive entry by hand. |
 | D117 | Never edit a generated file. Edit the source and run the generator. |
 | D181 | Write only inside the repository. A temporary file goes into `docs/plans/<plan>/tmp/`, `docs/research/tmp/` or `docs/milestones/tmp/`. |
 | D257 | Outside the repository, the pre-write hook allows only the user folder of the provider. The bash guard refuses a command of an agent that names a path outside the repository. |
 | D258 | The bash guard allows the folders of `toolchain_folders` and `dependency_source` in `tools/project.toml`. It does not check the main session. |
+| D283 | An agent reads a dependency only in the folder that `python -m tools.project source` prints, never in a folder of the user account. It never asks for a permission to read outside the repository. |
 | D279 | The pre-write hook and the bash guard judge the work of an agent against the root of its path. The root is the main repository or the worktree that holds the path. The first write of an agent binds it to its root. Work without an agent keeps the root of the session. |
 
 ## Commits
@@ -544,7 +567,8 @@ The tools make these commits. The agent never makes them by hand.
 | `Milestone drafted: M004`, `Milestone draft removed: M004` | `milestone_create commit`, `milestone_create remove` |
 | `Milestone created: M003` | `milestone_create open`, `milestone_close migrate` |
 | `Plan created: M003-P002` | `plan_create commit` |
-| `Step started: M003-P002 S01`, `Step blocked:`, `Step unblocked:`, `Fix step added:` | `step_close start`, `block`, `unblock`, `add-fix` |
+| `Step started: M003-P002 S01`, `Step reviewed:`, `Step blocked:`, `Step unblocked:`, `Fix step added:` | `step_close start`, `review`, `block`, `unblock`, `add-fix` |
+| `Problem added: M003-P002 N01`, `Problem answered:`, `Problem checked:` | `step_close add-problem`, `answer-problem`, `check-problem` |
 | `Evidence: M003-P002 S01` | `test --step` |
 | `Approval recorded: M003-P002 S01` | `approve` |
 | `Step closed: M003-P002 S01` | `step_close close` |
@@ -558,8 +582,10 @@ The tools make these commits. The agent never makes them by hand.
 | `Milestone updated: M003` | `progress set-goal`, `progress out-of-scope` |
 | `Plan synced: M003-P002`, `Plan synced with conflicts: M003-P002` | `plan_close sync` |
 | `Plan blocked: M003-P002`, `Plan unblocked: M003-P002` | `plan_close block`, `plan_close unblock` |
+| `Plan reviewed: M003-P002`, `Tuning done:`, `Manual check recorded: M003-P002`, `Bug verified: M003-P002 B01` | `plan_close reviewed`, `tuning`, `check`, `verify-bug` |
 | `Review passed: M003-P002` | `plan_close review-passed` |
 | `Plan merged: M003-P002` | `plan_close merge`, as the squash commit on the milestone branch |
+| `Milestone reviewed: M003` | `milestone_close reviewed` |
 | `Manual check recorded: M003 F01` | `milestone_close check` |
 | `Plan closed: M003-P002` | `plan_close` |
 | `Version: 1.12.0` | `milestone_close`, on the milestone branch |
@@ -628,13 +654,25 @@ A research file answers one question before the work on a feature. The skill `re
 |---|---|
 | D247 | The file has the name `R[NNN]-[NAME].md`. Its first line is the title with the id and the subject. |
 | D248 | One line under the title holds the date and the scope of the research. |
-| D249 | The file marks each statement that the research did not verify as not verified. |
+| D249 | The file marks each fact as `run` when an experiment or a spike showed it, or as `read` when only a source states it. It marks each statement that the research did not verify as not verified. |
+| D297 | A research on a change of existing code can run a spike. `python -m tools.research spike <id>` creates the branch `spike/<id>` and its worktree, and `spike-end <id>` deletes both. |
+| D298 | In a spike, the `implementor` agent builds the core of the change and runs the whole suite. The research file lists each failure with its cause. No commit of a spike reaches the milestone branch. |
+| D299 | A step that rests on a fact that the research marks as `read` says so in its text. |
 | D250 | The file ends with a recommendation or the lessons for the project, then the section `Sources`. |
 | D251 | Each part between that frame has the shape that fits the subject. No rule prescribes a further section. |
 | D252 | `python -m tools.research check` fails only when the title, the line with date and scope or the section `Sources` is missing or empty. |
 | D253 | A recommendation that changes the design goes to the user. Only the user changes a design document. |
 | D254 | A feature needs research when a trigger of the section Research of the skill `plan-create` holds. |
 | D255 | The researcher starts max 4 sub agents per research, each on the cheapest model class, and only for searches that read. |
+
+## Document review
+A document review checks a milestone file, a plan file, a research file or a dependency row.
+
+| ID | Rule |
+|---|---|
+| D300 | Count the new `Important` problems of each round. A round converges when it posts fewer than half of the round before. |
+| D301 | When a round does not converge, stop the review by reading. Run a spike on the open question, or cut the scope of the document. |
+| D302 | A document with unchecked fixes of `Important` problems is not committed. One short check of these fixes runs after the last round. It confirms or re-raises them and posts nothing new. |
 
 ## Dependencies file
 `docs/DEPENDENCIES.md` holds the structural dependencies of the project.
@@ -660,6 +698,7 @@ A research file answers one question before the work on a feature. The skill `re
 | D223 | A row is not allowed when a conventions rule or one test can express it. |
 | D224 | The file holds max 9 rows. A further row needs a removal first. |
 | D225 | `Validation` is a check that a tool or the reviewer can run. |
+| D289 | `Trigger` names the kinds of change that meet the row, not only the kinds of state that it guards. |
 | D226 | Only `python -m tools.dependency` writes the file. Each add, change and removal writes one record line with the source or the reason. |
 | D262 | `python -m tools.dependency change` writes new cells into a row on a decision of the user. The row keeps its id. |
 | D227 | `dependency-add` proposes a row at two times only: at the milestone creation from the design, and at the plan close for a topic that came back. The user decides. |
@@ -873,7 +912,7 @@ linux = "sh"
 | D168 | `ci` is `none` or the path of the pipeline file. The pipeline runs `python -m tools.check` and `python -m tools.test`. |
 | D169 | `test_command` runs the test `{name}`, or each test of `{names}` in one call of the runner. It must fail when no test has a given name. |
 | D217 | The test commands run the tests in parallel, with the option of the runner. |
-| D218 | `test_report` is optional. It names the report file in the JUnit XML format that the runner writes. `python -m tools.test` reads the counts and the failed tests from it. |
+| D218 | `test_report` is optional. It names the report file in the JUnit XML format that the runner writes. `python -m tools.test` reads the counts and the failed tests from it. A run that must fail needs it. |
 | D219 | A bound folder exists: each source folder, each test folder and the test support folder. A project without a file of its languages is exempt. |
 | D170 | `[commands]` holds each command of a `COMMAND <name> passes` check. |
 | D171 | `format` and `lint` are check commands. They do not change a file. |
@@ -897,21 +936,21 @@ Each tool runs as `python -m tools.<name>`. A tool without arguments prints its 
 | `check` | none, `<files>`, `--format-only`, `--staged` | Runs lint, format, encoding, docs lint, memory lint, provider, wiki and progress checks. `--format-only` skips the lint. `--staged`, the commit hook, lints the staged documents only and refuses a tool file in a commit that no tool makes. |
 | `pre_write`, `post_write` | | Hook entries. Block a protected write. Run the generator and the checks for a changed file. Run the hook of the main repository or of the worktree that holds the path of a write of an agent. Refuse a write of an agent outside its first root. |
 | `timing` | `start`, `end`, `report [<log>]` | Hook entries that log the duration of each tool call of a session in `docs/milestones/tmp/logs/` of the main repository. The report prints the time per tool and the slowest calls. |
-| `agent_guard` | `<bash or edit>` | Hook entry. Reads the agent from `agent_type` of the hook input. Checks a call against `bash_allow` and `edit_allow` of the root of its path. A leading `cd <root> &&` names that root. Refuses a command of an agent that names a path outside the repository. |
+| `agent_guard` | `<bash or edit>` | Hook entry. Reads the agent from `agent_type` of the hook input. Checks a call against `bash_allow` and `edit_allow` of the root of its path. A leading `cd <root> &&` names that root. Refuses a command of an agent that names a path outside the repository. It reads an absolute path in quotes as one token, also with a space. Refuses a command with `--answer` and a second command, also of the main session. |
 | `project` | `init`, `update`, `check`, `source` | Validates the bindings and commits them. Prints the absolute path of the dependency sources. |
-| `progress` | none, `check`, `status`, `add-feature`, `drop-feature`, `set-goal`, `out-of-scope <add or remove>`, `add-bug`, `fix-bug`, `drop-bug` | Writes `PROGRESS.md` and the feature tables. Prints the next step in a worktree, and the active plans and the drafts in the main repository. Writes features, bugs, the goal and the out of scope list in the main repository. |
+| `progress` | none, `check`, `status`, `add-feature`, `drop-feature <feature> --answer`, `set-goal`, `out-of-scope <add or remove>`, `add-bug`, `fix-bug`, `drop-bug <bug> --answer` | Writes `PROGRESS.md` and the feature tables. Prints the next step in a worktree, and the active plans and the drafts in the main repository. Writes features, bugs, the goal and the out of scope list in the main repository. |
 | `milestone_create` | `draft <name>`, `commit <id>`, `open <id>`, `remove <id>` | Writes a draft file. Validates and commits a draft. Opens a draft with its branch. Removes a draft. |
 | `plan_create` | `start <feature, fix or refactor> <name>`, `reviewed`, `commit`, `worktree <plan>` | Creates the draft folder. Records a document review. Validates and commits the plan, then creates its branch and its worktree. |
 | `review_yield` | none | Counts the reviews of the archived plans per kind and round, their problems, the plans per topic and the bugs fixed later. |
-| `step_close` | `start`, `review`, `close [--answer] [--by agent]`, `revert`, `block`, `unblock`, `add-fix`, `set-text <step> "<text>"`, `set-dependencies <step> "<ids>"` | Makes each state change of a step, in the worktree of the plan. Writes the new text of an open step and the dependencies of an open step or a step in progress. |
-| `plan_close` | In the worktree: `sync`, `reviewed`, `review-passed`, `block`, `unblock`. In the main repository: `merge <plan>`, `tuning`, `check`, `verify-bug`, none | Makes each state change of the plan close. |
-| `milestone_close` | none, `check`, `migrate <id>` | Closes, merges or migrates a milestone. `migrate` opens the draft with the given id. |
+| `step_close` | `start`, `review`, `close [--answer] [--by agent]`, `revert`, `block`, `add-fix`, `set-text <step> "<text>" --answer`, `unblock <step> --answer`, `set-dependencies <step> "<ids>" [--answer]`, `add-problem <step or plan> <round> <severity> <rule> "<topic>" "<location>" "<trigger>" "<class>" "<fix>"`, `answer-problem <problem> "<answer>"`, `check-problem <problem> "<check>"` | Makes each state change of a step, in the worktree of the plan. Writes the new text and the dependencies of a step. Adds, answers and checks the problems of the plan, also of the plan in close in the main repository. |
+| `plan_close` | In the worktree: `sync`, `reviewed`, `review-passed`, `block`, `unblock <accept, drop <id> or replan <id>> --answer`. In the main repository: `merge <plan>`, `tuning`, `check`, `verify-bug`, none | Makes each state change of the plan close. `reviewed` runs each `COMMAND` check of the plan verification in round 1 and prints each failure. |
+| `milestone_close` | none, `reviewed`, `check`, `migrate <id>` | Closes, merges or migrates a milestone. `reviewed` records the milestone review. `migrate` opens the draft with the given id. |
 | `approve` | `<plan> <step or close>` | Writes an approval record of the user. |
-| `test` | none, `<name> [<name> ...]`, `<name> --command`, `--step <step>` | Runs the suite, the named tests in one call of the runner, or a command. Prints one line for a pass and the failed tests for a failure. Writes the full output to the evidence or to a log. The log lies in `tmp/logs/` of the plan folder in a plan worktree, else in `docs/milestones/tmp/logs/`. Ends a run after `test_run_limit` with its process tree, and ends leftover test processes before a run. |
+| `test` | none, `<name or check line> [...]`, `--contains`, `--fails`, `--mutation <patch>`, `--step <step>` | Runs the suite, the named tests in one call of the runner, or the command of a check line. Names each test that ran and each failed test, and runs a failed test three more times alone. Writes the full output to the evidence or to a log. The log lies in `tmp/logs/` of the plan folder in a plan worktree, else in `docs/milestones/tmp/logs/`. Ends a run after `test_run_limit` with its process tree, and ends leftover test processes before a run. |
 | `dependency` | `add "<trigger>" "<action>" "<validation>" "<source>"`, `change <id> "<trigger>" "<action>" "<validation>" "<source>"`, `remove <id> "<reason>"` | Adds a row with the next id to `docs/DEPENDENCIES.md`, changes the cells of a row and removes one in the close of a refactor plan. Commits the file. |
 | `memory_index`, `memory_lint` | none, `show`, `--strict` | Writes and checks the memory index and the entries. |
 | `ideas` | `add "<idea>" <user or agent>`, `edit <id> "<idea>"`, `remove <id> [<id> ...] "<reason>"` | Adds an idea with the next id, changes the text of an idea and removes ideas from `docs/plans/IDEAS.md`. Commits the file. |
-| `research` | `start <name>`, `check [<id> ...]`, `commit <id>` | Starts a research file with the next id. Checks the frame of the research files. Commits one file. |
+| `research` | `start <name>`, `check [<id> ...]`, `commit <id>`, `spike <id>`, `spike-end <id>` | Starts a research file with the next id. Checks the frame of the research files. Commits one file. Creates and deletes the branch and the worktree of a spike. |
 | `check_encoding`, `fix_encoding` | none, `<files>` | Checks and repairs the encoding. |
 | `docs_lint` | none, `<files>` | Runs Vale and the project content check. |
 | `build_wiki_bundle` | none, `check` | Writes and checks the offline wiki bundle. |

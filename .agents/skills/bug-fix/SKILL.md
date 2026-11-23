@@ -5,10 +5,11 @@ description: Verifies each fixed bug of a fix plan at plan close and records the
 # bug-fix
 
 The rules are in `docs/DOCS_CONVENTIONS.md`, sections Bugs and Plan close.
+Before each command with `--answer`, ask the user in the chat and wait for the answer. A request for a change is not its approval. Run that command alone, with no second command.
 
 ## Procedure
 1. Read the bug ids from the field `bugs` of the active plan.
-2. For a bug with a manual check, ask the user and run `python -m tools.plan_close check <bug> --answer <yes|no>`.
+2. For a bug with a manual check, run `python -m tools.plan_close check <bug>`. When it asks, ask the user and run it again with `--answer <yes|no>`. Never pass an earlier answer of the user on to a later gate. The tool decides whether an earlier pass still holds.
 3. Run `python -m tools.plan_close verify-bug <bug>` for each bug.
 4. Report each bug that the tool did not verify, with the reason that the tool prints.
 

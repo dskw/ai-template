@@ -9,12 +9,14 @@ from tools._lib import (
     MILESTONES,
     Problems,
     active_plans,
+    add_milestone_record,
     ask,
     git_ok,
     require_main,
     branch,
     commit,
     current_version,
+    earlier_pass,
     fail,
     find_milestone,
     git,
@@ -61,25 +63,48 @@ def check(args, answer):
         if row["State"] != "done" or (args and row["ID"] not in args):
             continue
         kind, name = parse_check(row["Acceptance"])
+        note = ""
         if kind == "MANUAL":
-            if answer is None and not os.isatty(0):
-                print(f"{row['ID']} MANUAL {name}: ask the user, then run python -m tools.milestone_close check {row['ID']} --answer yes|no")
-                code = 1
-                continue
-            passed = ask(f"Manual check {name} for {row['ID']}: did it pass?", answer)
+            if answer is None:
+                # an earlier pass holds while no product file changed since its commit
+                own = [Problems(plan) for plan in plans() if plan["meta"]["milestone"] == milestone["id"]]
+                record, changed = earlier_pass(own, name)
+                if record and not changed:
+                    passed, note = True, f" (the pass at {record['ids'][-1]} holds, no product file changed since)"
+                elif not os.isatty(0):
+                    stale = f". The pass at {record['ids'][-1]} no longer holds, these files changed since: {' '.join(changed)}" if record else ""
+                    print(f"{row['ID']} MANUAL {name}: ask the user, then run python -m tools.milestone_close check {row['ID']} --answer yes|no{stale}")
+                    code = 1
+                    continue
+            if not note:
+                passed = ask(f"Manual check {name} for {row['ID']}: did it pass?", answer)
             problems = Problems(done_plan(milestone, row["ID"]))
-            problems.record(MANUAL[0] if passed else MANUAL[1], row["ID"])
+            problems.record(MANUAL[0] if passed else MANUAL[1], row["ID"], name, git("rev-parse", "--short=12", "HEAD"))
             problems.save()
             commit(f"Manual check recorded: {milestone['id']} {row['ID']}", [problems.path], verify=False)
         else:
             passed = test.execute(kind, name)[0] == 0
-        print(f"{row['ID']} {row['Acceptance']}: {'pass' if passed else 'fail'}")
+        print(f"{row['ID']} {row['Acceptance']}: {'pass' if passed else 'fail'}{note}")
         code = code if passed else 1
     return code
 
 
+def reviewed():
+    """Records the milestone review: the review of the sum of the plans against the design."""
+    milestone = open_milestone()
+    if not milestone:
+        fail("no open milestone")
+    require_branch()
+    add_milestone_record(milestone, "milestone reviewed", git("rev-parse", "--short=12", "HEAD"))
+    save_milestone(milestone)
+    commit(f"Milestone reviewed: {milestone['id']}", [milestone["path"]], verify=False)
+    print(f"Milestone reviewed: {milestone['id']}")
+
+
 def gate(milestone, migrate):
     errors = []
+    if not migrate and not any(record["type"] == "milestone reviewed" for record in milestone["records"]):
+        errors.append("the milestone has no review, run the milestone review of milestone-close")
     pending = [p["id"] for p in plans() if p["meta"]["milestone"] == milestone["id"] and not p["archived"]]
     if pending:
         errors.append("plans are not archived: " + " ".join(pending))
@@ -291,9 +316,11 @@ def run(args):
         return close()
     if args[0] == "check":
         return check(args[1:], answer)
+    if args == ["reviewed"]:
+        return reviewed()
     if args[0] == "migrate" and len(args) == 2:
         return migrate(args[1])
-    fail("usage: python -m tools.milestone_close [check [<feature> --answer yes|no] | migrate <new milestone id>]")
+    fail("usage: python -m tools.milestone_close [reviewed | check [<feature> --answer yes|no] | migrate <new milestone id>]")
 
 
 if __name__ == "__main__":

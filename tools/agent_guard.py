@@ -11,6 +11,8 @@ SHELL_OPERATORS = (";", "&", "|", "<", ">", "`", "$(", "\n")
 # an absolute path starts a token: a drive, a share, the home folder or a root folder
 ABSOLUTE = re.compile(r"""(?:^|(?<=[\s"'=(<>|;&,]))((?:[A-Za-z]:[\\/]|\\\\[\w.-]+\\|//?|~(?=[\\/\s"']|$))[^\s"';&|<>()`]*)""")
 # a root folder of a shell on Windows or on a Unix system; a different first part is no path, for example a pattern
+# an absolute path in quotes is one token, also when it holds a space, for example "C:/Program Files/..."
+QUOTED_ABSOLUTE = re.compile(r"""(["'])((?:[A-Za-z]:[\\/]|\\\\[\w.-]+\\|/|~/)[^"'\n]*)\1""")
 ROOT_FOLDERS = {
     "tmp", "usr", "home", "etc", "var", "opt", "mnt", "dev", "proc", "root", "bin", "sbin", "srv", "run", "snap",
     "nix", "users", "windows", "private", "volumes", "library", "applications", "system",
@@ -77,6 +79,12 @@ def outside_paths(command):
     """The absolute paths of a command outside the repository and the tool chain folders of the binding."""
     found = [match.group(0) for match in OUTSIDE_VARIABLES.finditer(command)]
     folders = [str(main_root())] + toolchain_folders()
+    quoted = [match for match in QUOTED_ABSOLUTE.finditer(command) if is_path(match.group(2)) and match.group(2) not in ALLOWED_DEVICES]
+    for match in quoted:
+        if not inside(native(match.group(2)), folders):
+            found.append(match.group(2))
+    for match in reversed(quoted):
+        command = command[: match.start()] + " " * len(match.group(0)) + command[match.end() :]
     for match in ABSOLUTE.finditer(command):
         token = match.group(1).rstrip(".,:")
         if token in ALLOWED_DEVICES or not is_path(token):
@@ -109,6 +117,18 @@ def work_root(command):
     return None, command
 
 
+def answer_chain(command):
+    """Whether a command holds `--answer` and a second command. A leading change into a folder is no second command."""
+    plain = re.sub(r""""(?:\\.|[^"\\])*"|'[^']*'""", '""', command.strip())
+    if not re.search(r"(?:^|\s)--answer(?:\s|=|$)", plain):
+        return False
+    plain = re.sub(r"\d*>&\d+", " ", plain)
+    if plain.startswith("(") and plain.endswith(")"):
+        plain = plain[1:-1].strip()
+    plain = re.sub(r"""^cd\s+[^\s;&|]+\s*&&\s*""", "", plain)
+    return any(operator in plain for operator in (";", "&", "|", "\n", "`", "$("))
+
+
 def delegate(root, args, data):
     """Runs the guard of another root with the same hook input and returns its exit code."""
     result = subprocess.run(
@@ -129,9 +149,16 @@ def run(args):
     data = hook_input()
     tool_type = args[-1]
     agent = args[0] if len(args) == 2 else data.get("agent_type")
+    command = str((data.get("tool_input") or data.get("args") or {}).get("command", "")).strip()
+    if tool_type == "bash" and answer_chain(command):
+        print(
+            "A command with --answer runs alone, so the question of the user key stands alone in the prompt."
+            " Run each other command in its own call",
+            file=sys.stderr,
+        )
+        return 2
     if not agent:
         return 0
-    command = str((data.get("tool_input") or data.get("args") or {}).get("command", "")).strip()
     paths = []
     if tool_type == "bash":
         root, command = work_root(command)
