@@ -8,11 +8,13 @@ import tomllib
 from tools._lib import PROJECT_FILE, ROOT, any_match, fail, hook_input, main, main_root, read, read_meta, setup_root, split_hook
 
 SHELL_OPERATORS = (";", "&", "|", "<", ">", "`", "$(", "\n")
+# a share has a server name and a share name; an escaped line break of a text, for example \\n\\n, is no share
+SHARE = r"\\\\[\w.-]+\\(?=[\w.$-])"
 # an absolute path starts a token: a drive, a share, the home folder or a root folder
-ABSOLUTE = re.compile(r"""(?:^|(?<=[\s"'=(<>|;&,]))((?:[A-Za-z]:[\\/]|\\\\[\w.-]+\\|//?|~(?=[\\/\s"']|$))[^\s"';&|<>()`]*)""")
+ABSOLUTE = re.compile(rf"""(?:^|(?<=[\s"'=(<>|;&,]))((?:[A-Za-z]:[\\/]|{SHARE}|//?|~(?=[\\/\s"']|$))[^\s"';&|<>()`]*)""")
 # a root folder of a shell on Windows or on a Unix system; a different first part is no path, for example a pattern
 # an absolute path in quotes is one token, also when it holds a space, for example "C:/Program Files/..."
-QUOTED_ABSOLUTE = re.compile(r"""(["'])((?:[A-Za-z]:[\\/]|\\\\[\w.-]+\\|/|~/)[^"'\n]*)\1""")
+QUOTED_ABSOLUTE = re.compile(rf"""(["'])((?:[A-Za-z]:[\\/]|{SHARE}|/|~/)[^"'\n]*)\1""")
 ROOT_FOLDERS = {
     "tmp", "usr", "home", "etc", "var", "opt", "mnt", "dev", "proc", "root", "bin", "sbin", "srv", "run", "snap",
     "nix", "users", "windows", "private", "volumes", "library", "applications", "system",
@@ -20,8 +22,14 @@ ROOT_FOLDERS = {
 ALLOWED_DEVICES = {"/dev/null", "/dev/stdout", "/dev/stderr"}
 # a switch of a Windows command, for example /F, or its escaped form //c in a POSIX shell
 SWITCH = re.compile(r"^//?[A-Za-z]{1,2}$")
-# a shell loop that waits: while or until around a sleep or a file test
-WAIT_LOOP = re.compile(r"\b(?:while|until)\b.*?(?:\bsleep\b|\[\[?\s|\btest\s)", re.DOTALL)
+# a shell loop that waits: while or until starts a command, a do and a done follow, around a sleep or a file test
+# a loop of a script that waits: a while line with a colon before a call of sleep
+# the word while or until in a text is no loop
+WAIT_LOOP = re.compile(
+    r"(?:^|[;&|(\n]|\b(?:do|then|else)\s)\s*(?:while|until)\s(?=.*?[;\n]\s*do\s)(?=.*?\bdone\b)(?=.*?(?:\bsleep\b|\[\[?\s|\btest\s))"
+    r"|\bwhile\b[^\n]*:.*?\bsleep\s*\(",
+    re.DOTALL,
+)
 # a variable that names a folder outside the repository
 OUTSIDE_VARIABLES = re.compile(
     r"\$\{?(?:HOME|TEMP|TMP|TMPDIR|USERPROFILE|APPDATA|LOCALAPPDATA)\b|%(?:TEMP|TMP|USERPROFILE|APPDATA|LOCALAPPDATA|HOMEPATH)%"
