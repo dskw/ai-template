@@ -22,12 +22,16 @@ ROOT_FOLDERS = {
 ALLOWED_DEVICES = {"/dev/null", "/dev/stdout", "/dev/stderr"}
 # a switch of a Windows command, for example /F, or its escaped form //c in a POSIX shell
 SWITCH = re.compile(r"^//?[A-Za-z]{1,2}$")
-# a shell loop that waits: while or until starts a command, a do and a done follow, around a sleep or a file test
-# a loop of a script that waits: a while line with a colon before a call of sleep
-# the word while or until in a text is no loop
+# a shell loop: its word starts a command, and a do and a done follow
+LOOP_START = r"(?:^|[;&|(\n]|\b(?:do|then|else)\s)\s*"
+LOOP_BODY = r"(?=.*?[;\n]\s*do\s)(?=.*?\bdone\b)"
+# a shell loop that waits: while or until around a sleep or a file test, or for around a sleep
+# a loop of a script that waits: a while line or a for line with a colon before a call of sleep
+# a loop word in a text is no loop
 WAIT_LOOP = re.compile(
-    r"(?:^|[;&|(\n]|\b(?:do|then|else)\s)\s*(?:while|until)\s(?=.*?[;\n]\s*do\s)(?=.*?\bdone\b)(?=.*?(?:\bsleep\b|\[\[?\s|\btest\s))"
-    r"|\bwhile\b[^\n]*:.*?\bsleep\s*\(",
+    rf"{LOOP_START}(?:while|until)\s{LOOP_BODY}(?=.*?(?:\bsleep\b|\[\[?\s|\btest\s))"
+    rf"|{LOOP_START}for\b{LOOP_BODY}(?=.*?\bsleep\b)"
+    r"|\b(?:while\b|for\s[^\n:]*\sin\s)[^\n]*:.*?\bsleep\s*\(",
     re.DOTALL,
 )
 # a variable that names a folder outside the repository
