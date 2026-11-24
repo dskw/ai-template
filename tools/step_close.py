@@ -381,6 +381,7 @@ def close(step_id, answer, by=None):
         text = manual_source(by, passed) if source == "answer" else f"{source} holds, no product file changed since"
         test.append_evidence(plan, step_id, name, "MANUAL", 0 if passed else 1, text)
         if not passed:
+            commit(f"Manual check recorded: {plan['id']} {step_id}", [problems.path], verify=False)
             errors.append(f"the manual check {name} failed")
     elif kind == "COMMAND":
         code, output = test.execute(kind, name, plan, step_id)

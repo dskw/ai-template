@@ -53,6 +53,8 @@ The docs lint covers `docs/**`, `AGENTS.md`, `.agents/**` and `CHANGELOG.md`. It
 /docs/ai-setup-adjustments.md                  (findings about the AI setup and the instructions to apply them)
 /docs/DEPENDENCIES.md                          (structural dependencies of the project, written by tools.dependency)
 /docs/MEMORY.md                                (memory index, generated)
+/docs/LICENSES.md                              (outside items with a license outside the free list)
+/docs/IDEAS.md                                 (ideas for later milestones)
 /docs/memories/MEM-[NAME].md                   (one memory per file)
 /docs/design/                                  (design documents of the user)
 /docs/design/PROJECT.md                        (product, platforms and stack)
@@ -72,7 +74,6 @@ The docs lint covers `docs/**`, `AGENTS.md`, `.agents/**` and `CHANGELOG.md`. It
 /docs/milestones/tmp/                          (the manual check package of the milestone close, deleted at that close)
 /docs/milestones/tmp/logs/                     (logs of the test tool outside a plan and of the timing tool, deleted at the milestone close)
 /docs/plans/archive/                           (closed plans)
-/docs/plans/IDEAS.md                           (ideas for later milestones)
 /docs/wiki/                                    (developer wiki, project content only)
 /docs/wiki/README.md                           (overview of the product with the page map)
 /docs/wiki/_sidebar.md                         (navigation: each page once under its group)
@@ -444,6 +445,7 @@ sequenceDiagram
 | D80 | No other step starts while a step has the state `blocked`. |
 | D81 | The agent commits during a step as often as necessary, with a message of its own. A tool commits each of its own state writes at once. |
 | D207 | A delegated agent first compares its directory with the worktree of its task, then reads the memory index. It follows each memory of the types user and feedback like the main session. |
+| D322 | A memory of the types user and feedback adds its conditions to each skill step that it touches. A skill step never overrides such a memory. |
 | D188 | Tuning requests of a manual check belong to the step of the check, also when they touch an earlier step of the feature. |
 | D195 | The `implementor` agent writes the code and the documents of a step in a fresh context. The main session runs the tools and reads the reports. |
 | D246 | In a research step the `researcher` agent takes the place of the implementor. The document review of the research file is the review of the step. |
@@ -526,8 +528,8 @@ A gate runs its checks itself. A gate failure names the missing item.
 |---|---|---|
 | Step | `step_close close` | The milestone tables hold the id of the step. A review exists. Each problem has an answer. No `Important` problem is open. An approval covers the protected paths. The verification, `tools.check` and each test file that the step changed pass. The evidence file exists. A research step added a research file and changed no source or test file. |
 | Plan merge | `plan_close merge` | The worktree is clean. The plan branch holds the tip of the milestone branch. Each step is complete. Each problem has an answer. When the plan changed product code against the milestone branch, its newest own commit is the `Review passed:` commit. Only a sync without a conflict follows it. On the merged tree, `tools.check`, the checks of the `Verification` section and each test file that the plan changed pass. |
-| Plan | `plan_close` | The work tree is clean. No source or test file changed after the `Plan merged:` commit. Each step is complete. Each problem has an answer. The tuning ran. Each extension has a decision. An approval covers the protected paths of the close. The memory lint, `tools.progress` and `tools.check` pass. |
-| Milestone | `milestone_close` | A milestone review record exists. Each feature is `done` or `dropped`. The `Bugs` table is empty. Each plan is in `archive/`. Each acceptance check of a `done` feature passes. `tools.progress` and the whole suite pass. |
+| Plan | `plan_close` | The work tree is clean. No source or test file changed after the `Plan merged:` commit. Each step is complete. Each problem has an answer. The tuning ran. Each extension has a decision. An approval covers the protected paths of the close. The memory lint, `tools.progress`, `tools.licenses` and `tools.check` pass. |
+| Milestone | `milestone_close` | A milestone review record exists. Each feature is `done` or `dropped`. The `Bugs` table is empty. Each plan is in `archive/`. Each acceptance check of a `done` feature passes. `tools.progress`, `tools.licenses` and the whole suite pass. |
 
 | ID | Rule |
 |---|---|
@@ -546,7 +548,7 @@ A gate runs its checks itself. A gate failure names the missing item.
 | D286 | A command that changes or loosens a decision of the user takes `--answer`. The permission rule on `--answer` is the user key. It stays as it is, in each permission mode. |
 | D287 | A state of a step blocks one command only: a complete step takes no new text. An `unblock` and a drop take the reason of the user as the value of `--answer`. |
 | D288 | The bash guard refuses a command that holds `--answer` and a second command, also in the main session. Only a leading `cd <folder> &&` may stand before it. |
-| D213 | Where the provider has a permission rule for it, the provider asks the user before each command that holds `--answer`. |
+| D213 | Where the provider has a permission rule for it, the provider asks the user before each command that holds `--answer`. It asks too before a command that names the variable of a tool commit. The same holds for a command that imports a module of the tools into a line of code. The user can approve such a command for a repair by hand. |
 | D114 | A milestone file and a plan file are editable while `status` is `draft`. `python -m tools.milestone_create commit <id>` makes each commit of a milestone draft. |
 | D115 | After the creation commit, each write to a milestone file, `plan.md`, `progress.md` and `PROGRESS.md` goes through a tool. |
 | D214 | A tool commits its write at once: to such a file, an evidence file, the problems file, the ideas file and the dependencies file. The commit check refuses each other commit that holds one. A tool that refuses a work tree names each changed file and the tool that writes it. |
@@ -586,6 +588,7 @@ The tools make these commits. The agent never makes them by hand.
 | `Review passed: M003-P002` | `plan_close review-passed` |
 | `Plan merged: M003-P002` | `plan_close merge`, as the squash commit on the milestone branch |
 | `Milestone reviewed: M003` | `milestone_close reviewed` |
+| `Manual check recorded: M003-P002 S01` | `step_close close`, for a failed manual check |
 | `Manual check recorded: M003 F01` | `milestone_close check` |
 | `Plan closed: M003-P002` | `plan_close` |
 | `Version: 1.12.0` | `milestone_close`, on the milestone branch |
@@ -636,16 +639,36 @@ version: 1.12.0
 ```
 
 ## Ideas file
-`docs/plans/IDEAS.md` holds the ideas for features of later milestones that no milestone plans yet.
+`docs/IDEAS.md` holds the ideas for features of later milestones that no milestone plans yet.
 
 | ID | Rule |
 |---|---|
 | D189 | The table has the columns `ID`, `Time`, `Source` and `Idea`. Only `python -m tools.ideas` writes it. |
 | D190 | `ID` is `IDEA` and a number of three digits, for example `IDEA001`. An id is never used twice, also after its row was removed. |
 | D191 | `Time` is the local date and time in the form `2026-11-14 15:30`. `Source` is `user` or `agent`. |
-| D192 | `Idea` is one sentence of max 25 words that names what the user sees. |
+| D192 | `Idea` has max 100 words and names what the user sees. It can hold more than one sentence. |
 | D193 | A milestone that plans an idea removes its row with the milestone id as reason. |
 | D268 | `python -m tools.ideas edit` writes the new text of an idea. The id, the time and the source stay. |
+
+## Licenses file
+`docs/LICENSES.md` lists each outside item of the project whose license is not on the free list of `tools/project.toml`.
+
+```
+| Item | Source | License | Author | Attribution | Condition |
+|---|---|---|---|---|---|
+| map-tiles | https://example.org/map-tiles | CC-BY-4.0 | Example Maps | Map data by Example Maps | |
+```
+
+| ID | Rule |
+|---|---|
+| D308 | An outside item is a library, an asset or a code pattern that the project did not make. `Item` is its name in the manifest, or its path. |
+| D309 | A row exists only for an item with a license outside the free list: an attribution, a copyleft, a paid license or another condition. |
+| D310 | `Attribution` holds the text that the license asks for. `Condition` holds each other condition of the license or of the terms. |
+| D311 | An asset that the project builds itself needs no row. Each source of its data needs a license check: a generator model, a texture, a font or a reference image. |
+| D312 | The terms of a model or a tool can set a condition beyond the license name. An example is a free license that ends above a limit of revenue or users. |
+| D313 | A source with such a condition counts as outside the free list. Its row holds the condition. |
+| D314 | `python -m tools.licenses` reads the license of each dependency of the manifests. It lists each dependency with a license outside the free list that has no row. |
+| D315 | The plan gate and the milestone gate run the license tool. An item that it lists gets its row, or the user removes the item. |
 
 ## Research file
 A research file answers one question before the work on a feature. The skill `research-run` writes it through the `researcher` agent.
@@ -757,6 +780,14 @@ Index line: `- [feedback] MEM-use-pnpm: Use pnpm, not npm`
 
 Open `docs/wiki/index.html` in a browser, or run `python -m http.server 8000 --directory docs/wiki`.
 
+## Agent tasks
+| ID | Rule |
+|---|---|
+| D318 | An agent task holds the goal and its sources: the step or the problem, the worktree, the design sections and the research files. |
+| D319 | It can hold the dependency rows, the decisions of the user and facts from earlier reports or from the output of a tool. A value that the user decided or the design states is a source too. |
+| D320 | An agent task holds no implementation step and no test instruction. These are the files to change, a value that no source states, the tests to write or run, test bounds and mutation runs. |
+| D321 | The agent derives the work from the sources and the conventions. An exception needs an explicit request of the user for that task. |
+
 ## Skills, agent definitions and AGENTS.md
 | ID | Rule |
 |---|---|
@@ -767,7 +798,7 @@ Open `docs/wiki/index.html` in a browser, or run `python -m http.server 8000 --d
 | D148 | Never append a note, an exception, a reminder or a history line. |
 | D149 | The file describes the procedure as it is now. It holds no past decision and no reason for a past change. |
 | D150 | A skill or an agent definition holds no project content: no milestone, plan, bug or problem id, no date, no version, no product term. |
-| D151 | A fact about the project lives in `docs/design/`, `tools/project.toml` or a conventions file. The skill names that place. |
+| D151 | A fact about the project lives in `docs/design/`, `tools/project.toml`, a memory or a conventions file. The skill names that place. A skill names no mode, tool or argument of the project. |
 | D152 | An agent prompt states the role, the input, the procedure and the output. It does not prescribe a decision that the agent can make. |
 | D153 | `AGENTS.md` holds the sections Project, Conventions, Status, Skills, Memory and Language. A rule longer than one line moves to a conventions file. |
 
@@ -825,7 +856,7 @@ Provider facts, checked against the provider documentation in November 2026. The
 | Claude Code: environment variable in `.mcp.json` | `${NAME}` in `command`, `args`, `env`, `url` and `headers`. |
 | Claude Code: provider memory | `autoMemoryEnabled: false` in `.claude/settings.json`. |
 | Claude Code: question tool | `AskUserQuestion`, one to four questions, two to four options, multiple select. |
-| Claude Code: ask rule | `permissions.ask` with `Bash(* --answer *)` in `.claude/settings.json`. It asks in each permission mode and for a command inside a compound command. |
+| Claude Code: ask rule | `permissions.ask` in `.claude/settings.json` with `Bash(* --answer *)`, one rule for the variable of a tool commit and three rules for an import of the tools. It asks in each permission mode and for a command inside a compound command. |
 | Codex and Kilo: ask rule | Not generated. The rule D113 is the only protection there. |
 | Codex: agent sandbox | An agent file cannot set `sandbox_mode`. An agent inherits the sandbox of the session. |
 | Codex: hooks | `[features] hooks`, on by default. The trust of the project and `/hooks` are necessary. |
@@ -905,6 +936,13 @@ build = "python -m build"
 [start_script]
 windows = "bat"
 linux = "sh"
+
+[licenses]
+commercial = true
+paid = false
+held = ["Example Font Pro"]
+free = ["MIT", "Apache-2.0"]
+dependencies = "python scripts/dependency_licenses.py"
 ```
 
 | ID | Rule |
@@ -923,8 +961,11 @@ linux = "sh"
 | D270 | `comments` is optional. It is a check command that refuses each comment without a tool reason. `python -m tools.check` runs it with `format` and `lint`. |
 | D271 | `test_run_limit` is the time limit of one test run in seconds. The per-test timeout lives in the configuration of the test runner. |
 | D272 | `test_binaries` is optional. It lists the globs of the test executables. Before a run, `python -m tools.test` ends each process of such an executable that still runs. |
-| D273 | `[start_script]` is optional. It maps each platform to the file type of a start script of a manual check package, for example `windows = "bat"`. |
+| D273 | `[start_script]` is optional. It maps each platform to the file type of a start script of a manual check package, for example `windows = "bat"`. A start script passes its arguments to the program. |
 | D259 | `toolchain_folders` is optional. It lists the folders of the tool chain outside the repository that a command of an agent names. |
+| D307 | `[licenses]` holds the license answers of the user. `commercial` says whether the product is commercial. `paid` says whether paid libraries and assets are allowed. `held` lists what the project already holds a license for. |
+| D316 | `free` lists the free licenses. Such a license allows commercial and open source use and asks for no attribution in the product. |
+| D317 | `dependencies` is optional. It is a command that prints one line per dependency of the manifests: the name, a tab and the license expression. |
 
 ## Tool reference
 Each tool runs as `python -m tools.<name>`. A tool without arguments prints its usage when it needs arguments.
@@ -949,7 +990,8 @@ Each tool runs as `python -m tools.<name>`. A tool without arguments prints its 
 | `test` | none, `<name or check line> [...]`, `--contains`, `--fails`, `--mutation <patch>`, `--step <step>` | Runs the suite, the named tests in one call of the runner, or the command of a check line. Names each test that ran and each failed test, and runs a failed test three more times alone. Writes the full output to the evidence or to a log. The log lies in `tmp/logs/` of the plan folder in a plan worktree, else in `docs/milestones/tmp/logs/`. Ends a run after `test_run_limit` with its process tree, and ends leftover test processes before a run. |
 | `dependency` | `add "<trigger>" "<action>" "<validation>" "<source>"`, `change <id> "<trigger>" "<action>" "<validation>" "<source>"`, `remove <id> "<reason>"` | Adds a row with the next id to `docs/DEPENDENCIES.md`, changes the cells of a row and removes one in the close of a refactor plan. Commits the file. |
 | `memory_index`, `memory_lint` | none, `show`, `--strict` | Writes and checks the memory index and the entries. |
-| `ideas` | `add "<idea>" <user or agent>`, `edit <id> "<idea>"`, `remove <id> [<id> ...] "<reason>"` | Adds an idea with the next id, changes the text of an idea and removes ideas from `docs/plans/IDEAS.md`. Commits the file. |
+| `licenses` | none | Checks the license of each dependency of the manifests against the free list. Lists each dependency outside the list without a row in `docs/LICENSES.md`. |
+| `ideas` | `add "<idea>" <user or agent>`, `edit <id> "<idea>"`, `remove <id> [<id> ...] "<reason>"` | Adds an idea with the next id, changes the text of an idea and removes ideas from `docs/IDEAS.md`. Commits the file. |
 | `research` | `start <name>`, `check [<id> ...]`, `commit <id>`, `spike <id>`, `spike-end <id>` | Starts a research file with the next id. Checks the frame of the research files. Commits one file. Creates and deletes the branch and the worktree of a spike. |
 | `check_encoding`, `fix_encoding` | none, `<files>` | Checks and repairs the encoding. |
 | `docs_lint` | none, `<files>` | Runs Vale and the project content check. |

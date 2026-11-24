@@ -2,6 +2,8 @@ import json
 
 import yaml
 
+from tools._lib import TOOL_COMMIT
+
 MODELS = {"fast": "haiku", "balanced": "sonnet", "strong": "opus"}
 TOOLS = {
     "read": ["Read"],
@@ -13,6 +15,15 @@ TOOLS = {
     "web": ["WebFetch", "WebSearch"],
     "agent": ["Agent"],
 }
+# the harness asks the user before a command that passes an answer of the user, or that reaches a guarded write
+# without one: through the variable of a tool commit, or through a module of the tools in a line of code
+ASK_RULES = [
+    "Bash(* --answer *)",
+    f"Bash(*{TOOL_COMMIT}*)",
+    "Bash(*import tools*)",
+    "Bash(*from tools.*)",
+    "Bash(*from tools import*)",
+]
 EVENTS = {"session_start": "SessionStart", "pre_tool_use": "PreToolUse", "post_tool_use": "PostToolUse"}
 
 
@@ -60,8 +71,7 @@ def generate(source, matcher):
         if hook["event"] != "session_start":
             group = {"matcher": matcher(hook, "claude"), **group}
         hooks.setdefault(EVENTS[hook["event"]], []).append(group)
-    # the answer of the user to an approval or a manual check: the harness asks before a command passes one
-    permissions = {"ask": ["Bash(* --answer *)"]}
+    permissions = {"ask": ASK_RULES}
     settings = {"autoMemoryEnabled": False, "env": {"PYTHONUTF8": "1"}, "permissions": permissions, "hooks": hooks}
     files[".claude/settings.json"] = json.dumps(settings, indent=2) + "\n"
     servers = {server["name"]: server_entry(server) for server in source["mcp"]}

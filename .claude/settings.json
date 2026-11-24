@@ -5,7 +5,11 @@
   },
   "permissions": {
     "ask": [
-      "Bash(* --answer *)"
+      "Bash(* --answer *)",
+      "Bash(*SETUP_TOOL_COMMIT*)",
+      "Bash(*import tools*)",
+      "Bash(*from tools.*)",
+      "Bash(*from tools import*)"
     ]
   },
   "hooks": {

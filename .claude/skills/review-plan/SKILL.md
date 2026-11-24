@@ -6,6 +6,7 @@ description: Runs the reviewer agent on the whole plan in its worktree, adds fix
 
 The rules are in `docs/DOCS_CONVENTIONS.md`, section Plan close. The problem format is in `docs/REVIEW.md`.
 Before each command with `--answer`, ask the user in the chat and wait for the answer. A request for a change is not its approval. Run that command alone, with no second command.
+An agent task holds the goal and its sources, with no implementation step and no test instruction. The rules are in `docs/DOCS_CONVENTIONS.md`, section Agent tasks.
 
 ## Procedure
 1. Run `python -m tools.plan_close reviewed` in the worktree of the plan. It prints the review round. In round 1 it first runs each `COMMAND` check of the plan verification and prints each failing test.

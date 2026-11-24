@@ -5,6 +5,7 @@ description: Answers one open question with a research file through the research
 # research-run
 
 The frame of a research file is in `docs/DOCS_CONVENTIONS.md`, section Research file. The main session orchestrates: it runs the tool, starts the agents and reads their reports.
+An agent task holds the goal and its sources, with no implementation step and no test instruction. The rules are in `docs/DOCS_CONVENTIONS.md`, section Agent tasks.
 
 ## Procedure
 1. Write the question as one sentence. Name the feature or the decision that needs the answer.

@@ -71,7 +71,7 @@ TOOL_OWNED = [
     "docs/plans/*/progress.md",
     "docs/plans/*/problems.md",
     "docs/plans/*/evidence/**",
-    "docs/plans/IDEAS.md",
+    "docs/IDEAS.md",
     "docs/DEPENDENCIES.md",
 ]
 # the tool that writes each file of a tool, for the message of a refused work tree
@@ -80,7 +80,7 @@ WRITERS = [
     ("docs/plans/*/plan.md", "python -m tools.step_close or python -m tools.plan_close"),
     ("docs/plans/*/progress.md", "python -m tools.step_close"),
     ("docs/plans/*/evidence/**", "python -m tools.test"),
-    ("docs/plans/IDEAS.md", "python -m tools.ideas"),
+    ("docs/IDEAS.md", "python -m tools.ideas"),
     ("docs/DEPENDENCIES.md", "python -m tools.dependency"),
     ("docs/milestones/**", "python -m tools.progress or a milestone tool"),
     ("docs/MEMORY.md", "python -m tools.memory_index"),
@@ -92,7 +92,7 @@ DRAFT_ONLY = ["docs/milestones/M*.md", "docs/plans/*/plan.md"]
 # the files of the whole milestone: a session writes them in the main repository, never in the worktree of a plan
 SHARED = [
     "docs/milestones/**",
-    "docs/plans/IDEAS.md",
+    "docs/IDEAS.md",
     "docs/memories/**",
     "docs/MEMORY.md",
     "docs/ai-setup-adjustments.md",

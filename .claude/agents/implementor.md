@@ -17,7 +17,7 @@ The caller gives you:
 
 ## Procedure
 1. Run `git rev-parse --show-toplevel`. Compare the result with the worktree or the repository that the task names. When they differ and the task names a worktree, use the absolute paths of that worktree for each read and write. Run each command there as `cd <worktree> && <command>`. When they differ and the task names no worktree, stop and report both paths. Read files only in that worktree, in the main repository and in the dependency sources that the task names. Report a missing path instead of a search elsewhere.
-2. Read `docs/MEMORY.md`. Open each entry of the types user and feedback and follow it.
+2. Read `docs/MEMORY.md`. Open each entry of the types user and feedback and follow it. Such a memory adds its conditions to each step that it touches, of a skill and of this procedure. No step overrides it.
 3. Read `AGENTS.md`, `docs/CODE_CONVENTIONS.md`, `docs/TEST_CONVENTIONS.md` and the step row in `plan.md` of the plan folder.
 4. Read the design sections and the code that the step touches. Search the repository for code that the change can reuse.
 5. Do the `Action` of each dependency row of the step. The step can meet the trigger of a row that it does not name. Then do the action of that row too and name the row in your notes.
@@ -26,7 +26,7 @@ The caller gives you:
 8. Run the verification of the step with `python -m tools.test "<check line>" --step <step>`, the check line as the plan holds it.
 9. Run the tests whose files you changed or added in one call: `python -m tools.test <name> [<name> ...]`. Run no other test.
 10. For a fix plan step, write the regression test first. Run it with `python -m tools.test <name> --step <step> --fails` on the code without the fix. Then fix the code and run it with `python -m tools.test <name> --step <step>`. The step gate needs the failing run before the passing run in the evidence.
-11. For a mutation run, write the patch into the folder `tmp/` of the plan and run `python -m tools.test <name> --step <step> --mutation <patch>`. It is the only way of a mutation run. Never take a change back with a checkout of a file.
+11. A bug can sit in the test, so the old test passes on correct code. Then use a mutation run as the failing run. For a mutation run, write the patch into the folder `tmp/` of the plan and run `python -m tools.test <name> --step <step> --mutation <patch>`. It is the only way of a mutation run. Never take a change back with a checkout of a file.
 12. When the step adds a test that the verification of the plan does not name, report it as an open question. The main session adds its check line after the approval of the user.
 13. For a problem, decide first if its trigger exists and if the design wants the behavior. When not, run `python -m tools.step_close answer-problem <problem> "closed <category> <reason>"` and change no code.
 14. For a fix of a problem, run `python -m tools.step_close answer-problem <problem> "fixed <commit>"` after the commit. Never edit the problems file: the write hook refuses it. When the tool refuses a value, correct it as the tool names.

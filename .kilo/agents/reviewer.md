@@ -16,6 +16,8 @@ permission:
     git log *: allow
     python -m tools.project source: allow
     python -m tools.project source *: allow
+    python -m tools.licenses: allow
+    python -m tools.licenses *: allow
   edit: deny
   glob: allow
   grep: allow
@@ -40,12 +42,12 @@ The caller gives you:
 
 ## Procedure
 1. Run `git rev-parse --show-toplevel`. Compare the result with the worktree or the repository that the task names. When they differ and the task names a worktree, use the absolute paths of that worktree for each read and write. Run each command there as `cd <worktree> && <command>`. When they differ and the task names no worktree, stop and report both paths. Read files only in that worktree, in the main repository and in the dependency sources that the task names. Report a missing path instead of a search elsewhere.
-2. Read `docs/MEMORY.md`. Open each entry of the types user and feedback and follow it.
+2. Read `docs/MEMORY.md`. Open each entry of the types user and feedback and follow it. Such a memory adds its conditions to each step that it touches, of a skill and of this procedure. No step overrides it.
 3. Read `docs/REVIEW.md`. Follow its procedure for the given scope.
 4. Read the step text or the plan in `plan.md` of the plan folder, and `docs/DEPENDENCIES.md`.
 5. Read the diff of the step with `git diff <start commit>`.
 6. Find the `Plan created:` commit with `git log`. Read the diff of the plan with `git diff <commit>`.
-7. Check the duplication candidates and the fit candidates against the diff of the plan.
+7. Check the duplication candidates and the fit candidates against the diff of the plan. Read the license of each new dependency, asset and copied code pattern at its source.
 8. Read the conventions file of each rule that a candidate maps to.
 9. Read the code around the change. Search the repository for existing code that the change can reuse.
 10. Run `python -m tools.test <name>` when a test can show a failure.

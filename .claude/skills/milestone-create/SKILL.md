@@ -5,6 +5,7 @@ description: Writes a milestone file with goal, features, acceptance checks and 
 # milestone-create
 
 The format and the rules of a milestone file are in `docs/DOCS_CONVENTIONS.md`, section Milestone file.
+An agent task holds the goal and its sources, with no implementation step and no test instruction. The rules are in `docs/DOCS_CONVENTIONS.md`, section Agent tasks.
 
 ## Procedure
 1. Run `python -m tools.progress status`. Stop when the project is not initialized.

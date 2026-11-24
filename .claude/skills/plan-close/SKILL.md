@@ -6,6 +6,7 @@ description: Closes a plan in two parts. In the worktree it runs the sync, the w
 
 The rules are in `docs/DOCS_CONVENTIONS.md`, sections Plan close, Tuning and Gates.
 Before each command with `--answer`, ask the user in the chat and wait for the answer. A request for a change is not its approval. Run that command alone, with no second command.
+An agent task holds the goal and its sources, with no implementation step and no test instruction. The rules are in `docs/DOCS_CONVENTIONS.md`, section Agent tasks.
 
 ## Part 1: in the worktree of the plan
 1. Run `python -m tools.progress status`. Continue only when it prints that no step is open.
@@ -26,10 +27,11 @@ Before each command with `--answer`, ask the user in the chat and wait for the a
 9. Apply the tuning changes that the user agreed to.
 10. Run `python -m tools.plan_close check`. It accepts an earlier pass of a manual check while no product file changed since. Never pass an earlier answer of the user on to a later gate. The tool decides whether an earlier pass still holds. For a manual check, prepare the package of the section Manual verification of `step-run` in `docs/plans/<plan>/tmp/manual-check/`. Ask the user and pass the answer as the tool prints. A `MANUAL` line of the plan verification is a manual check too, also when each feature has a test as acceptance. The plan gate refuses the close without its passed record.
 11. For a fix plan, run `bug-fix`. For a refactor plan, run `dependency-remove` for each dependency whose trigger the refactor removed.
-12. Commit the writes of the steps before.
-13. When a protected path changed, ask the user and run `python -m tools.approve <plan> close --answer <yes|no>`.
-14. Ask the user to close the manual check package. Run `python -m tools.plan_close`. Fix each item that the gate names.
-15. Name each problem that became a bug in the report to the user.
+12. Run `python -m tools.licenses`. Add the row of each item that it lists to `docs/LICENSES.md`. Ask the user when the license answers of the bindings forbid the license.
+13. Commit the writes of the steps before.
+14. When a protected path changed, ask the user and run `python -m tools.approve <plan> close --answer <yes|no>`.
+15. Ask the user to close the manual check package. Run `python -m tools.plan_close`. Fix each item that the gate names.
+16. Name each problem that became a bug in the report to the user.
 
 ## Several plans in one session
 Follow the section Several plans in one session of `step-run`. Run the tools of part 1 in a sub shell with the worktree of the plan as its directory. Run the tools of part 2 in a sub shell with the main repository as its directory. The wiki agent of part 1 is the one agent that writes in the worktree.

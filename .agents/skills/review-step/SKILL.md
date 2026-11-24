@@ -5,6 +5,7 @@ description: Runs the reviewer agent on the step in progress and writes the post
 # review-step
 
 The problem format is in `docs/REVIEW.md`. The file format is in `docs/DOCS_CONVENTIONS.md`, section Problems file.
+An agent task holds the goal and its sources, with no implementation step and no test instruction. The rules are in `docs/DOCS_CONVENTIONS.md`, section Agent tasks.
 
 ## Procedure
 1. Run `python -m tools.step_close review <step>`. It prints the review round.

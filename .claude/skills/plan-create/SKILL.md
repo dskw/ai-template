@@ -5,6 +5,7 @@ description: Writes a plan folder with steps and verification for open features,
 # plan-create
 
 The format and the rules of a plan file are in `docs/DOCS_CONVENTIONS.md`, sections Plan file, Bugs and Dependencies file.
+An agent task holds the goal and its sources, with no implementation step and no test instruction. The rules are in `docs/DOCS_CONVENTIONS.md`, section Agent tasks.
 
 ## Procedure
 1. Run `python -m tools.progress status` in the main repository. Stop when no milestone is open, or when each open feature and each bug has an active plan.

@@ -6,6 +6,7 @@ description: Runs the acceptance checks of the open milestone and closes it, or 
 
 The rules are in `docs/DOCS_CONVENTIONS.md`, sections Milestone close and Gates.
 Before each command with `--answer`, ask the user in the chat and wait for the answer. A request for a change is not its approval. Run that command alone, with no second command.
+An agent task holds the goal and its sources, with no implementation step and no test instruction. The rules are in `docs/DOCS_CONVENTIONS.md`, section Agent tasks.
 
 ## Procedure
 1. Run `python -m tools.progress status`. Stop when a plan is active.
@@ -13,10 +14,11 @@ Before each command with `--answer`, ask the user in the chat and wait for the a
 3. Follow the section Milestone review.
 4. Run `python -m tools.milestone_close check`.
 5. For a manual check, put the package of the section Manual verification of `step-run` into the milestone package folder of `docs/DOCS_CONVENTIONS.md`. Ask the user and pass the answer as the tool prints. Never pass an earlier answer of the user on to a later gate. The tool decides whether an earlier pass still holds.
-6. Ask the user to close the package. Run `python -m tools.milestone_close`. It writes the version and the changelog entry from the done features and the fixed bugs. Fix each item that the gate names and run it again.
-7. When the tool lists files with a merge conflict, resolve them and run `git add`.
-8. Run `python -m tools.check` and `python -m tools.test`. Then run `python -m tools.milestone_close` one more time.
-9. When the status prints a draft milestone, follow the section Next draft.
+6. Run `python -m tools.licenses`. Add the row of each item that it lists to `docs/LICENSES.md` and commit it. Ask the user when the license answers of the bindings forbid the license.
+7. Ask the user to close the package. Run `python -m tools.milestone_close`. It writes the version and the changelog entry from the done features and the fixed bugs. Fix each item that the gate names and run it again.
+8. When the tool lists files with a merge conflict, resolve them and run `git add`.
+9. Run `python -m tools.check` and `python -m tools.test`. Then run `python -m tools.milestone_close` one more time.
+10. When the status prints a draft milestone, follow the section Next draft.
 
 ## Milestone review
 Run it in the close, and at any time on user request.
@@ -39,4 +41,4 @@ Run it in the close, and at any time on user request.
 4. Ask the user whether the open features and bugs go into the first draft or into a new milestone before the drafts.
    Run `milestone-create` for that milestone as a premature close. It writes or changes the draft, runs the document review and commits the draft.
 5. Run `python -m tools.milestone_close migrate <id of the new milestone>`.
-6. On a merge conflict, follow steps 6 and 7 of the procedure with the migrate command.
+6. On a merge conflict, follow steps 7 and 8 of the procedure with the migrate command.

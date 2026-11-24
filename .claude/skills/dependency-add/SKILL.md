@@ -5,6 +5,7 @@ description: Adds one structural dependency of the project to the dependencies f
 # dependency-add
 
 The format and the rules of the file are in `docs/DOCS_CONVENTIONS.md`, section Dependencies file.
+An agent task holds the goal and its sources, with no implementation step and no test instruction. The rules are in `docs/DOCS_CONVENTIONS.md`, section Agent tasks.
 
 ## Procedure
 1. Work in the main repository. Read `docs/DEPENDENCIES.md`.

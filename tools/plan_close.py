@@ -3,7 +3,7 @@ import os
 import re
 import shutil
 
-from tools import memory_lint, progress, test
+from tools import licenses, memory_lint, progress, test
 from tools._lib import (
     EXTENSION_HEADER,
     MAX_ROUNDS,
@@ -529,6 +529,7 @@ def gate(plan, milestone, problems):
     errors += approval_errors(plan, problems, "close", base)
     errors += [f"memory lint: {error}" for error in memory_lint.errors(strict=True)]
     errors += progress.check_errors()
+    errors += licenses.errors()
     if errors:
         fail("plan gate:\n" + "\n".join(errors))
     # the tests of the plan passed on this tree at the merge, and no source or test file changed since

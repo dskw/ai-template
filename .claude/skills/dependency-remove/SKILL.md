@@ -5,6 +5,7 @@ description: Removes one structural dependency from the dependencies file after 
 # dependency-remove
 
 The format and the rules of the file are in `docs/DOCS_CONVENTIONS.md`, section Dependencies file.
+An agent task holds the goal and its sources, with no implementation step and no test instruction. The rules are in `docs/DOCS_CONVENTIONS.md`, section Agent tasks.
 
 ## Procedure
 1. Work in the main repository, after the merge of the refactor plan. Stop when the plan in close is no refactor plan.

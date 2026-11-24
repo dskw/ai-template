@@ -1,6 +1,6 @@
 ---
 name: project-init
-description: Binds the setup to one project. Asks for the product, the platforms, the stack, the tools, the pipeline and the MCP servers, then writes and commits the project bindings. Use it once, before the first milestone.
+description: Binds the setup to one project. Asks for the product, the platforms, the stack, the tools, the pipeline, the licenses and the MCP servers, then writes and commits the project bindings. Use it once, before the first milestone.
 ---
 # project-init
 
@@ -35,6 +35,10 @@ The procedure and the formats are in `docs/DOCS_CONVENTIONS.md`, section Project
 | 10 | Which MCP servers? | multiple select | The suggested servers. None. |
 | 11 | Where is the source of the installed dependencies? | single choice | The derived folder of the stack. None. |
 | 12 | Which groups of its domain does the wiki need? | multiple select | The derived groups, for example content and tuning values. None. |
+| 13 | Is the product commercial? | single choice | Commercial. Not commercial. Not decided, which counts as commercial. |
+| 14 | Are paid libraries and paid assets allowed? | single choice | Not allowed. Allowed. |
+| 15 | What does the project already hold a license for? | free text | Nothing. The items that the user names. |
+| 16 | Which licenses are free? | single choice | The common licenses that allow commercial and open source use and ask for no attribution in the product. A list that the user names. |
 
 Ask question 1 only when `docs/design/` holds no document.
 
@@ -51,7 +55,7 @@ Prepare these writes. Do not write a file before the confirmation.
 2. The `Project` section of `AGENTS.md`: one to three sentences on the product and a link to `docs/design/`.
 3. The `Languages` table of `docs/CODE_CONVENTIONS.md`: one row per language, with the naming rules.
 4. The `Test runner` table of `docs/TEST_CONVENTIONS.md`.
-5. `tools/project.toml` in the format of `docs/DOCS_CONVENTIONS.md`, with the command lines of the chosen tools, `comments` per language with a comment check, `test_run_limit`, `[start_script]` and `dependency_source` when the user named a folder. Add `test_binaries` when the test runner builds its own test executables.
+5. `tools/project.toml` in the format of `docs/DOCS_CONVENTIONS.md`, with the command lines of the chosen tools, `comments` per language with a comment check, `test_run_limit`, `[start_script]` and `dependency_source` when the user named a folder. Add `[licenses]` with the answers of questions 13 to 16, and its command `dependencies` when the stack has a manifest. Add `test_binaries` when the test runner builds its own test executables.
 6. The per-test timeout in the configuration of the test runner.
 7. Use the start version of the example in `docs/DOCS_CONVENTIONS.md` unless the user answered that the product is in deployment.
 8. Set `main_branch` to the output of `git branch --show-current`.
@@ -60,7 +64,8 @@ Prepare these writes. Do not write a file before the confirmation.
 11. `.agents/mcp.yaml` with the approved servers. Write names of environment variables, never a value.
 12. The overview `docs/wiki/README.md` in the form of the wiki rules, with the product, its parts and the page map.
     The page map has one row per page of the default groups and one row per planned page of each group of question 12.
-13. One page per row of the page map with its headings, and `docs/wiki/_sidebar.md` with each page under its group.
+13. `docs/LICENSES.md` with the table of the section Licenses file and no row.
+14. One page per row of the page map with its headings, and `docs/wiki/_sidebar.md` with each page under its group.
 
 ## Confirmation
 1. Show the user a summary of all writes.

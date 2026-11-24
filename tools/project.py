@@ -1,6 +1,7 @@
 import re
 import tomllib
 
+from tools import licenses
 from tools._lib import (
     DOCS,
     MILESTONES,
@@ -73,6 +74,9 @@ def errors():
         found.append("tools/project.toml: each entry of [commands] must be one command line")
     if project["ci"] != "none" and not (ROOT / project["ci"]).is_file():
         found.append(f"tools/project.toml: ci must be 'none' or the path of the pipeline file, {project['ci']} is missing")
+    found += licenses.binding_errors(project)
+    if not licenses.LICENSES.is_file():
+        found.append(f"{licenses.LICENSES_NAME} is missing")
     if not (DOCS / "design" / "PROJECT.md").is_file():
         found.append("docs/design/PROJECT.md is missing")
     if PLACEHOLDER in read(ROOT / "AGENTS.md"):

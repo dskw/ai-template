@@ -4,10 +4,11 @@ planned or dropped ideas."""
 import re
 from datetime import datetime
 
-from tools._lib import PLANS, commit, fail, git, main, read, read_table, require_main, words, write, write_table
+from tools._lib import DOCS, commit, fail, git, main, read, read_table, require_main, words, write, write_table
 
-IDEAS = PLANS / "IDEAS.md"
+IDEAS = DOCS / "IDEAS.md"
 IDEAS_HEADER = ["ID", "Time", "Source", "Idea"]
+IDEA_WORDS = 100
 IDEA_ID = re.compile(r"IDEA(\d{3})")
 TEMPLATE = """# Ideas
 
@@ -25,15 +26,15 @@ def rows():
 
 
 def next_id(text):
-    # an id is never used twice, so the git history of the file counts too
-    history = git("log", "-p", "--all", "--", str(IDEAS), check=False)
+    # an id is never used twice, so the git history of the file counts too, also from before a move of the file
+    history = git("log", "-p", "--all", "--follow", "--", str(IDEAS), check=False)
     numbers = [int(number) for number in IDEA_ID.findall(text + "\n" + history)]
     return f"IDEA{max(numbers, default=0) + 1:03d}"
 
 
 def check_text(idea):
-    if not 1 <= words(idea) <= 25:
-        fail("the idea must have 1 to 25 words")
+    if not 1 <= words(idea) <= IDEA_WORDS:
+        fail(f"the idea must have 1 to {IDEA_WORDS} words")
 
 
 def add(idea, source):

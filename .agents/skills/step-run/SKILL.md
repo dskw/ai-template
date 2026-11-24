@@ -7,6 +7,7 @@ description: Implements the next step of the plan of this worktree with code, ev
 The rules are in `docs/DOCS_CONVENTIONS.md`, section Step execution, and in the code and test conventions. The main session orchestrates: it runs the tools of the step state, starts the agents and reads their reports, not the code.
 Change the directory to the worktree of the plan right before each agent start, unless an agent of another plan runs. Name the worktree in the task of the agent. Name the dependency sources too: the path that `python -m tools.project source` prints, unless it prints `none`.
 Before each command with `--answer`, ask the user in the chat and wait for the answer. A request for a change is not its approval. Run that command alone, with no second command.
+An agent task holds the goal and its sources, with no implementation step and no test instruction. The rules are in `docs/DOCS_CONVENTIONS.md`, section Agent tasks.
 
 ## Procedure
 1. Run `python -m tools.progress status` in the worktree of the plan. Take the step that it prints.
@@ -31,7 +32,7 @@ A step with the verification `COMMAND research_check passes` is a research step.
 
 ## Fix plan step
 The implementor writes the regression test first when the acceptance of the bug is a test. It runs the test with the options `--step` and `--fails` on the code without the fix, and with `--step` after the fix. The evidence shows the failing run before the passing run, and the step gate refuses the close without it.
-A bug can sit in the test, so the old test passes on correct code. Then tell the implementor to use a mutation run as the failing run. The mutation breaks the behavior that the test guards. The implementor writes the mutation as a patch into the folder `tmp/` of the plan and runs `python -m tools.test <name> --step <step> --mutation <patch>`. The tool applies the patch, runs the test and takes the patch back. The implementor names the patch in its report. Each further bug of a shared cause gets its failing run the same way.
+A bug can sit in the test, so the old test passes on correct code. Then the implementor uses a mutation run as the failing run. The mutation breaks the behavior that the test guards. The implementor writes the mutation as a patch into the folder `tmp/` of the plan and runs `python -m tools.test <name> --step <step> --mutation <patch>`. The tool applies the patch, runs the test and takes the patch back. The implementor names the patch in its report. Each further bug of a shared cause gets its failing run the same way.
 
 ## Failed test
 Never run a failed test again by hand to make a gate pass. The test tool runs it three more times alone. `fails in n of 4 runs` names a cause in the timeline or the order of the test: fix that cause.
@@ -58,7 +59,7 @@ A report or a review can name a row of `docs/DEPENDENCIES.md` whose trigger the 
 8. Run `python -m tools.step_close unblock <step> --answer "<answer of the user>"`. Continue as the user decided.
 
 ## Manual verification
-1. The implementor puts a package into `docs/plans/<plan>/tmp/manual-check/` and nowhere else. It holds the built application with each file that it needs, one start script per part and a readme of max 20 lines. A start script has the file type of `[start_script]` in `tools/project.toml` for the platform. A milestone check package goes into the milestone package folder of `docs/DOCS_CONVENTIONS.md`.
+1. The implementor puts a package into `docs/plans/<plan>/tmp/manual-check/` and nowhere else. It holds the built application with each file that it needs, one start script per part and a readme of max 20 lines. A start script has the file type of `[start_script]` in `tools/project.toml` for the platform, and it passes its arguments to the program. A milestone check package goes into the milestone package folder of `docs/DOCS_CONVENTIONS.md`.
 2. The readme names what to start, what to check and what the user tells the agent.
 3. The implementor starts each script once from its full path and fixes the package when a script fails.
 4. Run `python -m tools.step_close close <step>` first. It accepts an earlier pass of the same check while no product file changed since. When it asks, ask the user to run the check, and pass the answer with `python -m tools.step_close close <step> --answer <yes|no>`. Never pass an earlier answer of the user on to a later gate. The tool decides whether an earlier pass still holds.

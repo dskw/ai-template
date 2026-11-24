@@ -8,7 +8,7 @@ The ideas file and its rules are in `docs/DOCS_CONVENTIONS.md`, section Ideas fi
 
 ## Procedure
 1. Find the id of the idea in the ideas file.
-2. Write the new text as one sentence of max 25 words that names what the user sees. Keep the part of the old text that still holds.
+2. Write the new text in max 100 words. Name what the user sees. Keep the part of the old text that still holds.
 3. Run `python -m tools.ideas edit <id> "<idea>"`. It keeps the id, the time and the source and commits the file.
 
 ## Rules

@@ -2,7 +2,7 @@ import datetime
 import os
 import shutil
 
-from tools import milestone_create, progress, test
+from tools import licenses, milestone_create, progress, test
 from tools._lib import (
     CHANGELOG,
     LOG_FOLDER,
@@ -115,6 +115,7 @@ def gate(milestone, migrate):
     if milestone["bugs"] and not migrate:
         errors.append("open bugs: " + " ".join(row["ID"] for row in milestone["bugs"]))
     errors += progress.check_errors()
+    errors += licenses.errors()
     if errors:
         fail("milestone gate:\n" + "\n".join(errors))
     for row in milestone["features"]:
