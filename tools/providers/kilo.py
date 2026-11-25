@@ -55,6 +55,9 @@ def agent_file(agent):
         for prefix in agent["bash_allow"]:
             rules[prefix] = "allow"
             rules[f"{prefix} *"] = "allow"
+            if prefix.startswith("git "):
+                rules[f"git -C *{prefix[3:]}"] = "allow"
+                rules[f"git -C *{prefix[3:]} *"] = "allow"
         permission["bash"] = rules
     if "edit_allow" in agent and "edit" in granted:
         permission["edit"] = {"*": "deny", **{glob: "allow" for glob in agent["edit_allow"]}}

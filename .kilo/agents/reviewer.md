@@ -6,14 +6,20 @@ permission:
     '*': deny
     git rev-parse --show-toplevel: allow
     git rev-parse --show-toplevel *: allow
+    git -C * rev-parse --show-toplevel: allow
+    git -C * rev-parse --show-toplevel *: allow
     python -m tools.test: allow
     python -m tools.test *: allow
     python -m tools.check: allow
     python -m tools.check *: allow
     git diff: allow
     git diff *: allow
+    git -C * diff: allow
+    git -C * diff *: allow
     git log: allow
     git log *: allow
+    git -C * log: allow
+    git -C * log *: allow
     python -m tools.project source: allow
     python -m tools.project source *: allow
     python -m tools.licenses: allow
