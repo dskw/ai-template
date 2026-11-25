@@ -24,7 +24,7 @@ The caller gives you:
 - For a manual check, the package folder and the tuning requests of the user.
 
 ## Procedure
-1. Run `git rev-parse --show-toplevel`. Compare the result with the worktree or the repository that the task names. When they differ and the task names a worktree, use the absolute paths of that worktree for each read and write. Run each command there as `cd <worktree> && <command>`. When they differ and the task names no worktree, stop and report both paths. Read files only in that worktree, in the main repository and in the dependency sources that the task names. Report a missing path instead of a search elsewhere.
+1. Run `git rev-parse --show-toplevel`. Compare the result with the worktree or the repository that the task names. When they differ and the task names a worktree, use the absolute paths of that worktree for each read and write. Run each git command there as `git -C <worktree> <arguments>`, and each other command as `cd <worktree> && <command>`. When they differ and the task names no worktree, stop and report both paths. Read files only in that worktree, in the main repository and in the dependency sources that the task names. Report a missing path instead of a search elsewhere.
 2. Read `docs/MEMORY.md`. Open each entry of the types user and feedback and follow it. Such a memory adds its conditions to each step that it touches, of a skill and of this procedure. No step overrides it.
 3. Read `AGENTS.md`, `docs/CODE_CONVENTIONS.md`, `docs/TEST_CONVENTIONS.md` and the step row in `plan.md` of the plan folder.
 4. Read the design sections and the code that the step touches. Search the repository for code that the change can reuse.

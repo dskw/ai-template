@@ -108,18 +108,24 @@ def outside_paths(command):
 
 # a command that starts with a change into a folder: the folder is the root of the work of the command
 CHANGE_FOLDER = re.compile(r"""^cd\s+("[^"]+"|'[^']+'|[^\s;&|]+)\s*&&\s*""")
+# a git command that names its folder: the folder is the root of the work of the command
+GIT_FOLDER = re.compile(r"""^git\s+-C\s+("[^"]+"|'[^']+'|[^\s;&|]+)\s+""")
 
 
 def work_root(command):
-    """The root of the main repository or of a worktree that a command works in, and the command without its change
-    into that root. The root comes from a leading change of the folder, else from the first absolute path of the
-    command that lies in a root. None when the command names no root."""
-    match = CHANGE_FOLDER.match(command)
-    if match:
+    """The root of the main repository or of a worktree that a command works in, and the command without the part
+    that names that root. The root comes from a leading change of the folder or from the folder option of a git
+    command, else from the first absolute path of the command that lies in a root. None when the command names no
+    root."""
+    for pattern, start in ((CHANGE_FOLDER, ""), (GIT_FOLDER, "git ")):
+        match = pattern.match(command)
+        if not match:
+            continue
         folder = native(match.group(1).strip("\"'"))
         root = setup_root(os.path.join(ROOT, folder))
         if root is not None and os.path.normcase(os.path.abspath(os.path.join(ROOT, folder))) == os.path.normcase(str(root)):
-            return root, command[match.end() :]
+            return root, start + command[match.end() :]
+        break
     for match in ABSOLUTE.finditer(command):
         token = match.group(1).rstrip(".,:")
         if is_path(token) and token not in ALLOWED_DEVICES:
