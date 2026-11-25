@@ -516,7 +516,7 @@ def add_problem(cells):
     row.update({"ID": next_id("N", [item["ID"] for item in problems.rows]), "Answer": "", "Check": ""})
     errors = row_errors(row, problems.header)
     if row["Step"] != "plan" and row["Step"] not in [step["Step"] for step in all_steps(plan)]:
-        errors.append(f"D65: {row['Step']} is no step of {plan['id']}")
+        errors.append(f"D900: {row['Step']} is no step of {plan['id']}")
     if words(row["Fix"]) > 20:
         errors.append("docs/REVIEW.md, Problem format: Fix is max 20 words")
     if errors:
@@ -532,15 +532,15 @@ def answer_problem(problem_id, answer):
     row = find_problem(problems, problem_id)
     answer = one_line(answer, "the answer")
     if row["Answer"].startswith(TOOL_ANSWERS):
-        fail(f"D71: the answer '{row['Answer']}' of {problem_id} comes from a tool and stays. A fix step answers its own problems")
+        fail(f"D909: the answer '{row['Answer']}' of {problem_id} comes from a tool and stays. A fix step answers its own problems")
     if answer.startswith(TOOL_ANSWERS):
-        fail("D71: a tool writes the answers reverted, user and fix. A user answer needs the user key: run the unblock command")
+        fail("D909: a tool writes the answers reverted, user and fix. A user answer needs the user key: run the unblock command")
     if not AGENT_ANSWER.match(answer):
-        fail("D66: the answer must be 'fixed <commit>', 'closed <wrong|intentional|prevented> <reason>' or 'bug <id>'")
+        fail("D902: the answer must be 'fixed <commit>', 'closed <wrong|intentional|prevented> <reason>' or 'bug <id>'")
     if (row["Severity"] == "Pre-existing") != answer.startswith("bug "):
-        fail("D70: a Pre-existing problem takes the answer 'bug <id>', and only such a problem takes it")
+        fail("D906: a Pre-existing problem takes the answer 'bug <id>', and only such a problem takes it")
     if answer.startswith("fixed ") and not git_ok("cat-file", "-e", answer.split()[1] + "^{commit}"):
-        fail(f"D66: {answer.split()[1]} is no commit")
+        fail(f"D902: {answer.split()[1]} is no commit")
     row["Answer"] = answer
     save_problems(plan, problems, problem_id, "Problem answered")
     print(f"problem {problem_id} answered")
@@ -552,11 +552,11 @@ def check_problem(problem_id, value):
     row = find_problem(problems, problem_id)
     value = one_line(value, "the check")
     if not CHECK_CELL.match(value):
-        fail("D69: the check must be 'confirmed', 're-raised <trigger>' or 'carried <id>'")
+        fail("D904: the check must be 'confirmed', 're-raised <trigger>' or 'carried <id>'")
     if value.startswith("carried "):
         carrier = find_problem(problems, value.split()[1])
         if carrier["ID"] <= problem_id or carrier["Step"] != row["Step"]:
-            fail(f"D69: the carrier {carrier['ID']} must be a later row of the same step")
+            fail(f"D904: the carrier {carrier['ID']} must be a later row of the same step")
     row["Check"] = value
     save_problems(plan, problems, problem_id, "Problem checked")
     print(f"problem {problem_id} checked")

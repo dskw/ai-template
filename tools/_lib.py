@@ -838,23 +838,23 @@ def row_errors(row, header=PROBLEM_HEADER):
     """The errors of one problem row, each with the rule that it breaks."""
     errors = []
     if not PROBLEM_ID.match(row["ID"]):
-        errors.append("D65: the id must have the form N[NN]")
+        errors.append("D900: the id must have the form N[NN]")
     if row["Step"] != "plan" and not STEP_ID.match(row["Step"]):
-        errors.append("D65: Step must be a step id or 'plan'")
+        errors.append("D900: Step must be a step id or 'plan'")
     if row["Round"] not in ROUNDS:
-        errors.append("D76: Round must be 1, 2 or 3")
+        errors.append("D1003: Round must be 1, 2 or 3")
     if row["Severity"] not in SEVERITIES:
         errors.append("docs/REVIEW.md, Problem format: Severity must be Important, Nit or Pre-existing")
     for cell in ("Rule", "Location", "Trigger", "Class", "Fix"):
         if not row[cell]:
             errors.append(f"docs/REVIEW.md, Problem format: the cell {cell} is empty")
     if header == PROBLEM_HEADER and not 1 <= words(row["Topic"]) <= 2:
-        errors.append("D205: Topic must have one or two words")
+        errors.append("D907: Topic must have one or two words")
     answer = row["Answer"]
     if answer and not (AGENT_ANSWER.match(answer) or answer == "reverted" or re.match(r"^(user \S.*|fix \S+)$", answer)):
-        errors.append("D66: Answer must be 'fixed <commit>' or 'closed <wrong|intentional|prevented> <reason>'")
+        errors.append("D902: Answer must be 'fixed <commit>' or 'closed <wrong|intentional|prevented> <reason>'")
     if row["Check"] and not CHECK_CELL.match(row["Check"]):
-        errors.append("D69: Check must be 'confirmed', 're-raised <trigger>' or 'carried <id>'")
+        errors.append("D904: Check must be 'confirmed', 're-raised <trigger>' or 'carried <id>'")
     return errors
 
 
